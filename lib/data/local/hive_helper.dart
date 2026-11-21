@@ -190,81 +190,15 @@ class HiveHelper {
       'instructor': 'د. عبدالله أحمد',
     });
 
-    // 8. Sample Students (Faculty of Computer Science and Human Development)
-    final sampleStudents = [
-      {
-        'id': 1,
-        'university_id': '2022-1045',
-        'full_name': 'أحمد محمد عبدالله علي',
-        'phone': '0912345678',
-        'email': 'ahmed.ali@dawami.edu',
-        'college_id': 1,
-        'department_id': 1,
-        'level_id': 3,
-        'semester_id': 1,
-        'status': 'نشط',
-        'qr_code': 'DAWAMI:STUDENT:2022-1045',
-        'fingerprint_id': 'FP-1045',
-        'college_name': 'كلية علوم الحاسوب والتنمية البشرية',
-        'department_name': 'علوم الحاسوب',
-        'level_name': 'المستوى الثالث',
-      },
-      {
-        'id': 2,
-        'university_id': '2022-1112',
-        'full_name': 'سارة عثمان إبراهيم حسن',
-        'phone': '0912345679',
-        'email': 'sara.osman@dawami.edu',
-        'college_id': 1,
-        'department_id': 2,
-        'level_id': 3,
-        'semester_id': 1,
-        'status': 'نشط',
-        'qr_code': 'DAWAMI:STUDENT:2022-1112',
-        'fingerprint_id': 'FP-1112',
-        'college_name': 'كلية علوم الحاسوب والتنمية البشرية',
-        'department_name': 'تقنية المعلومات',
-        'level_name': 'المستوى الثالث',
-      },
-      {
-        'id': 3,
-        'university_id': '2021-0873',
-        'full_name': 'محمود خالد يوسف أحمد',
-        'phone': '0912345680',
-        'email': 'mahmoud.khaled@dawami.edu',
-        'college_id': 1,
-        'department_id': 3,
-        'level_id': 4,
-        'semester_id': 1,
-        'status': 'متوقف',
-        'qr_code': 'DAWAMI:STUDENT:2021-0873',
-        'fingerprint_id': 'FP-0873',
-        'college_name': 'كلية علوم الحاسوب والتنمية البشرية',
-        'department_name': 'نظم المعلومات',
-        'level_name': 'المستوى الرابع',
-      },
-      {
-        'id': 4,
-        'university_id': '2023-1590',
-        'full_name': 'عبدالرحمن فيصل صالح',
-        'phone': '0912345682',
-        'email': 'abdulrahman.faisal@dawami.edu',
-        'college_id': 1,
-        'department_id': 5,
-        'level_id': 2,
-        'semester_id': 1,
-        'status': 'نشط',
-        'qr_code': 'DAWAMI:STUDENT:2023-1590',
-        'fingerprint_id': 'FP-1590',
-        'college_name': 'كلية علوم الحاسوب والتنمية البشرية',
-        'department_name': 'هندسة البرمجيات',
-        'level_name': 'المستوى الثاني',
-      },
-    ];
+    // تبدأ صناديق Hive فارغة من الطلاب وسجلات الحضور لتمكين المستخدم من إضافة بياناته الحقيقية
+  }
 
-    for (var s in sampleStudents) {
-      await _studentsBox.put(s['id'], s);
-    }
+  /// تفريغ وحذف جميع الطلاب وسجلات الحضور وطابور المزامنة نهائياً
+  Future<void> clearAllStudentsAndAttendance() async {
+    if (!_isInitialized) return;
+    await _studentsBox.clear();
+    await _attendanceBox.clear();
+    await _syncQueueBox.clear();
   }
 
   // ==========================================

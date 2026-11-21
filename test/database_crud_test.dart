@@ -117,7 +117,20 @@ void main() {
     });
 
     test('Register attendance records check-in and check-out successfully', () async {
-      // Find an active student
+      if (repo.students.where((s) => s.status == 'نشط').isEmpty) {
+        await repo.addStudent(Student(
+          universityId: 'ATT-TEST-01',
+          fullName: 'طالب اختبار الحضور',
+          phone: '0912345678',
+          email: 'att.test@dawami.edu',
+          collegeId: 1,
+          departmentId: 1,
+          levelId: 1,
+          semesterId: 1,
+          status: 'نشط',
+          qrCode: 'ATT-TEST-01',
+        ));
+      }
       final activeStudent = repo.students.firstWhere((s) => s.status == 'نشط');
 
       // 1. Record Check-In

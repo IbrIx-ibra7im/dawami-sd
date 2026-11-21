@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/network/connectivity_service.dart';
-import '../../core/sync/sync_engine.dart';
 import '../../core/utils/date_helper.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
@@ -14,7 +13,6 @@ import '../fingerprint/fingerprint_screen.dart';
 import '../attendance/attendance_list_screen.dart';
 import '../students/students_list_screen.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../settings/sync_screen.dart';
 import '../settings/settings_screen.dart';
 import '../authentication/login_screen.dart';
 import 'desktop_main_shell.dart';
@@ -60,12 +58,10 @@ class _HomeScreenState extends State<HomeScreen> {
       return const DesktopMainShell();
     }
 
-    final syncEngine = context.watch<SyncEngine>();
     final connectivity = context.watch<ConnectivityService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final isOnline = connectivity.isOnline;
-    final pendingCount = syncEngine.pendingCount;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
@@ -194,34 +190,24 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                          // Sync Status Indicator
-                          InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => const SyncScreen()),
-                              );
-                            },
-                            child: Row(
-                              children: [
-                                Icon(
-                                  pendingCount == 0 ? Icons.check_circle : Icons.sync,
-                                  size: 14,
-                                  color: pendingCount == 0 ? AppColors.turquoise : AppColors.warning,
+                          // Live Auto-Sync Status Indicator
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.cloud_done_rounded,
+                                size: 14,
+                                color: AppColors.turquoise,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                AppStrings.synced,
+                                style: const TextStyle(
+                                  color: AppColors.turquoise,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  pendingCount == 0
-                                      ? AppStrings.synced
-                                      : 'بانتظار المزامنة ($pendingCount)',
-                                  style: TextStyle(
-                                    color: pendingCount == 0 ? AppColors.turquoise : AppColors.warning,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -269,14 +255,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: StatCard(
-                        title: AppStrings.pendingSync,
-                        value: '$pendingCount',
-                        color: AppColors.warning,
-                        icon: Icons.cloud_upload_outlined,
+                        title: 'إجمالي الطلاب',
+                        value: '${repo.totalStudentsCount}',
+                        color: AppColors.primaryBlue,
+                        icon: Icons.people_alt_rounded,
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const SyncScreen()),
+                            MaterialPageRoute(builder: (_) => const StudentsListScreen()),
                           );
                         },
                       ),

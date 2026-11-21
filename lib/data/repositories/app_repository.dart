@@ -179,6 +179,19 @@ class AppRepository extends ChangeNotifier {
         }
       } catch (_) {}
 
+      // تفريغ الأسماء والسجلات الوهمية السابقة نهائياً لبدء النظام بنظافة تامة
+      try {
+        final purged = await _hive.getSetting('mock_names_purged_v1', defaultValue: 'false');
+        if (purged != 'true') {
+          await _hive.clearAllStudentsAndAttendance();
+          await _db.clearAllStudentsAndAttendance();
+          await _hive.setSetting('mock_names_purged_v1', 'true');
+          try {
+            await _db.setSetting('mock_names_purged_v1', 'true');
+          } catch (_) {}
+        }
+      } catch (_) {}
+
       await refreshStudents();
       await refreshAttendance();
       await refreshFingerprints();
@@ -436,6 +449,8 @@ class AppRepository extends ChangeNotifier {
         deviceId: _deviceName,
       );
     } catch (_) {}
+
+    _triggerAutoSync();
 
     await refreshAttendance();
     return _todayAttendance.firstWhere(
@@ -706,6 +721,17 @@ class AppRepository extends ChangeNotifier {
     _universityName = name;
     await _db.setSetting('university_name', name);
     notifyListeners();
+  }
+
+  /// تشغيل المزامنة التلقائية فوراً بالخلفية وبدون تدخل المستخدم
+  void _triggerAutoSync() {
+    Future.microtask(() async {
+      try {
+        if (_supabase.isConfigured) {
+          await _hive.syncWithSupabase();
+        }
+      } catch (_) {}
+    });
   }
 
   void toggleTheme(bool dark) {

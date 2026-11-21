@@ -4,8 +4,6 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 import '../../core/network/connectivity_service.dart';
 import '../../core/permissions/role_manager.dart';
-import '../../core/sync/sync_engine.dart';
-import '../../data/remote/supabase_service.dart';
 import '../../data/repositories/app_repository.dart';
 
 import 'desktop_home_content.dart';
@@ -17,7 +15,6 @@ import '../students/students_list_screen.dart';
 import '../students/student_credentials_screen.dart';
 import '../lectures/lectures_list_screen.dart';
 import '../reports/reports_screen.dart';
-import '../settings/sync_screen.dart';
 import '../settings/settings_screen.dart';
 import '../authentication/login_screen.dart';
 
@@ -38,12 +35,10 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
       return const LoginScreen();
     }
 
-    final syncEngine = context.watch<SyncEngine>();
     final connectivity = context.watch<ConnectivityService>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final isOnline = connectivity.isOnline;
-    final pendingCount = syncEngine.pendingCount;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
@@ -152,20 +147,16 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
                           ],
                         ),
                       ),
-                      // Supabase Status
+                      // Auto-Sync Status
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.turquoise.withAlpha(20),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          syncEngine.currentMethod == SyncMethod.localSafe
-                              ? 'مزامنة محلية آمنة'
-                              : (syncEngine.currentMethod == SyncMethod.fileBackup
-                                  ? 'نسخ ونقل ملفات'
-                                  : (SupabaseService.instance.isConfigured ? 'سحابي متصل' : 'سحابي محلي')),
-                          style: const TextStyle(
+                        child: const Text(
+                          'مزامنة تلقائية نشطة',
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: AppColors.turquoise,
@@ -192,13 +183,7 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
                       _buildNavItem(6, 'بصمات وبطاقات الطلاب (QR)', Icons.badge_rounded),
                       _buildNavItem(7, 'المحاضرات والقاعات', Icons.school_rounded),
                       _buildNavItem(8, 'التقارير الرسمية والطباعة', Icons.picture_as_pdf_rounded),
-                      _buildNavItem(
-                        9,
-                        'طابور المزامنة',
-                        Icons.sync_rounded,
-                        badgeCount: pendingCount > 0 ? pendingCount : null,
-                      ),
-                      _buildNavItem(10, 'الإعدادات العامة', Icons.settings_rounded),
+                      _buildNavItem(9, 'الإعدادات العامة', Icons.settings_rounded),
                     ],
                   ),
                 ),
@@ -411,8 +396,6 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
       case 8:
         return const ReportsScreen();
       case 9:
-        return const SyncScreen();
-      case 10:
         return const SettingsScreen();
       default:
         return DesktopHomeContent(

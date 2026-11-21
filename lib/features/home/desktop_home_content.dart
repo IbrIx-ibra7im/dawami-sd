@@ -446,7 +446,6 @@ class DesktopHomeContent extends StatelessWidget {
                           DataColumn(label: Text('وقت الحضور', style: TextStyle(fontWeight: FontWeight.bold))),
                           DataColumn(label: Text('وقت الانصراف', style: TextStyle(fontWeight: FontWeight.bold))),
                           DataColumn(label: Text('الحالة', style: TextStyle(fontWeight: FontWeight.bold))),
-                          DataColumn(label: Text('المزامنة', style: TextStyle(fontWeight: FontWeight.bold))),
                         ],
                         rows: recentRecords.map((r) {
                           final method = r.method == 'qr'
@@ -497,24 +496,6 @@ class DesktopHomeContent extends StatelessWidget {
                               ],
                             )),
                             DataCell(StatusBadge.fromStatus(r.status)),
-                            DataCell(Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  r.isSynced ? Icons.cloud_done : Icons.cloud_off,
-                                  size: 16,
-                                  color: r.isSynced ? AppColors.turquoise : AppColors.warning,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  r.isSynced ? 'متزامن' : 'محلي (معلق)',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: r.isSynced ? AppColors.turquoise : AppColors.warning,
-                                  ),
-                                ),
-                              ],
-                            )),
                           ]);
                         }).toList(),
                       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../data/local/database_helper.dart';
@@ -24,6 +25,7 @@ class SyncEngine extends ChangeNotifier {
   List<SyncQueueItem> _queueItems = [];
   int _pendingCount = 0;
   SupabaseTestResult? _lastTestResult;
+  Timer? _autoSyncTimer;
 
   SyncMethod get currentMethod => _currentMethod;
   bool get isSyncing => _isSyncing;
@@ -36,6 +38,20 @@ class SyncEngine extends ChangeNotifier {
 
   SyncEngine() {
     _initAndAutoFix();
+    _startAutoSync();
+  }
+
+  void _startAutoSync() {
+    _autoSyncTimer?.cancel();
+    _autoSyncTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      processSyncQueue();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSyncTimer?.cancel();
+    super.dispose();
   }
 
   /// عند بدء التشغيل: تعيين المزامنة المحلية الآمنة افتراضياً وتسوية أي سجلات عالقة

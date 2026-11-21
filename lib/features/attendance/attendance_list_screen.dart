@@ -310,7 +310,6 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                   const DataColumn(label: Text('وقت الحضور', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('وقت الانصراف', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الحالة', style: TextStyle(fontWeight: FontWeight.bold))),
-                  const DataColumn(label: Text('حالة المزامنة', style: TextStyle(fontWeight: FontWeight.bold))),
                   if (canDelete)
                     const DataColumn(label: Text('الإجراءات', style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
@@ -396,24 +395,6 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                         ],
                       )),
                       DataCell(StatusBadge.fromStatus(r.status)),
-                      DataCell(Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            r.isSynced ? Icons.cloud_done : Icons.cloud_off,
-                            size: 16,
-                            color: r.isSynced ? AppColors.turquoise : AppColors.warning,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            r.isSynced ? 'متزامن' : 'محلي (معلق)',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: r.isSynced ? AppColors.turquoise : AppColors.warning,
-                            ),
-                          ),
-                        ],
-                      )),
                       if (canDelete)
                         DataCell(
                           IconButton(
