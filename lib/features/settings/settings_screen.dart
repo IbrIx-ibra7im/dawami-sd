@@ -464,44 +464,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: _isCheckingUpdate
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.sync_rounded, size: 18),
-                          label: Text(
-                            _isCheckingUpdate ? 'جاري الفحص...' : 'البحث عن تحديثات الآن',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryBlue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onPressed: _isCheckingUpdate ? null : _checkUpdatesManually,
-                        ),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: _isCheckingUpdate
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.sync_rounded, size: 18),
+                      label: Text(
+                        _isCheckingUpdate ? 'جاري الفحص...' : 'البحث عن تحديثات الآن',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                        label: const Text('مستودع GitHub'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        onPressed: () => UpdateService.instance.openReleasesPage(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                    ],
+                      onPressed: _isCheckingUpdate ? null : _checkUpdatesManually,
+                    ),
                   ),
                 ],
               ),
