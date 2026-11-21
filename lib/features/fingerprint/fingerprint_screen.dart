@@ -1,0 +1,898 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/utils/date_helper.dart';
+import '../../data/models/student.dart';
+import '../../data/models/attendance_record.dart';
+import '../../data/repositories/app_repository.dart';
+import '../authentication/login_screen.dart';
+import '../fingerprint/fingerprint_provider.dart';
+
+import '../../data/models/biometric_models.dart';
+
+enum AttendanceInputMode { dual, fingerprint, barcode }
+
+class FingerprintScreen extends StatefulWidget {
+  final bool isInitialScreen;
+  const FingerprintScreen({super.key, this.isInitialScreen = false});
+
+  @override
+  State<FingerprintScreen> createState() => _FingerprintScreenState();
+}
+
+class _FingerprintScreenState extends State<FingerprintScreen> with TickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _scaleAnimation;
+
+  late AnimationController _laserAnimController;
+  late Animation<double> _laserAnimation;
+
+  final FocusNode _keyboardFocusNode = FocusNode();
+  final StringBuffer _keyBuffer = StringBuffer();
+  DateTime? _lastKeyTime;
+
+  AttendanceInputMode _currentMode = AttendanceInputMode.dual;
+  Student? _attendedStudent;
+  AttendanceRecord? _lastAttendanceRecord;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pulse animation for Fingerprint
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
+    );
+
+    // Laser sweep animation for Barcode / QR scanner
+    _laserAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _laserAnimation = Tween<double>(begin: 0.05, end: 0.95).animate(
+      CurvedAnimation(parent: _laserAnimController, curve: Curves.easeInOut),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _keyboardFocusNode.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _laserAnimController.dispose();
+    _keyboardFocusNode.dispose();
+    super.dispose();
+  }
+
+  // Handle hardware USB/Bluetooth barcode guns
+  void _handleHardwareKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+
+    final now = DateTime.now();
+    if (_lastKeyTime != null && now.difference(_lastKeyTime!).inMilliseconds > 250) {
+      _keyBuffer.clear();
+    }
+    _lastKeyTime = now;
+
+    final char = event.character;
+    if (char != null && char.isNotEmpty && char != '\n' && char != '\r') {
+      _keyBuffer.write(char);
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      final scanned = _keyBuffer.toString().trim();
+      _keyBuffer.clear();
+      if (scanned.isNotEmpty) {
+        _scanBarcode(scanned);
+      }
+    }
+  }
+
+  Future<void> _scanFingerprint({Student? specificStudent, bool useDeviceBiometrics = true}) async {
+    setState(() {
+      _errorMessage = null;
+      _attendedStudent = null;
+      _lastAttendanceRecord = null;
+    });
+
+    final fpProvider = context.read<FingerprintProvider>();
+    final repo = context.read<AppRepository>();
+
+    final matchedStudent = await fpProvider.triggerFingerprintScan(
+      forcedStudent: specificStudent,
+      preferDeviceHardware: useDeviceBiometrics,
+    );
+
+    if (matchedStudent != null) {
+      try {
+        final record = await repo.registerAttendance(
+          student: matchedStudent,
+          method: 'fingerprint',
+        );
+        // تسجيل عملية تحقق بيومتري ناجحة
+        await repo.logBiometricVerification(BiometricVerificationLog(
+          studentId: matchedStudent.id!,
+          method: 'fingerprint_1_N',
+          status: 'success',
+          reason: 'تم تطابق البصمة وتسجيل الحضور بنجاح',
+          timestamp: DateTime.now().toIso8601String(),
+          deviceModel: fpProvider.selectedDeviceModel,
+        ));
+        setState(() {
+          _attendedStudent = matchedStudent;
+          _lastAttendanceRecord = record;
+        });
+      } catch (e) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } else {
+      // تسجيل عملية تحقق بيومتري فاشلة
+      await repo.logBiometricVerification(BiometricVerificationLog(
+        studentId: 0,
+        method: 'fingerprint_1_N',
+        status: 'failed',
+        reason: 'لم يتم التحقق من البصمة أو تم إلغاء المسح',
+        timestamp: DateTime.now().toIso8601String(),
+        deviceModel: fpProvider.selectedDeviceModel,
+      ));
+      setState(() {
+        _errorMessage = 'لم يتم التحقق من البصمة أو تم إلغاء المسح';
+      });
+    }
+  }
+
+  Future<void> _scanBarcode(String code) async {
+    final cleanCode = code.trim();
+    if (cleanCode.isEmpty) return;
+
+    setState(() {
+      _errorMessage = null;
+      _attendedStudent = null;
+      _lastAttendanceRecord = null;
+    });
+
+    final repo = context.read<AppRepository>();
+    final student = await repo.getStudentByCode(cleanCode);
+
+    if (student == null) {
+      setState(() {
+        _errorMessage = 'الرمز غير مسجّل: لم يتم العثور على طالب بالرمز ($cleanCode)';
+      });
+      return;
+    }
+
+    if (student.status != 'نشط') {
+      setState(() {
+        _errorMessage = 'عذراً، الطالب ${student.fullName} حالته غير نشطة (${student.status})';
+      });
+      return;
+    }
+
+    try {
+      final record = await repo.registerAttendance(
+        student: student,
+        method: 'qr',
+      );
+      // تسجيل عملية تحقق ناجحة بالباركود
+      await repo.logBiometricVerification(BiometricVerificationLog(
+        studentId: student.id!,
+        method: 'barcode',
+        status: 'success',
+        reason: 'تم التعرف على الطالب وتسجيل الحضور عبر الباركود',
+        timestamp: DateTime.now().toIso8601String(),
+        deviceModel: 'USB Barcode Reader',
+      ));
+      setState(() {
+        _attendedStudent = student;
+        _lastAttendanceRecord = record;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fpProvider = context.watch<FingerprintProvider>();
+    final repo = context.watch<AppRepository>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return KeyboardListener(
+      focusNode: _keyboardFocusNode,
+      autofocus: true,
+      onKeyEvent: _handleHardwareKey,
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+        appBar: AppBar(
+          title: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.fingerprint_rounded, size: 22),
+              SizedBox(width: 4),
+              Icon(Icons.qr_code_2_rounded, size: 22),
+              SizedBox(width: 8),
+              Text('تسجيل الحضور بالبصمة الحيوية والباركود'),
+            ],
+          ),
+          backgroundColor: AppColors.darkBlue,
+          leading: widget.isInitialScreen
+              ? null
+              : (Navigator.canPop(context)
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null),
+          actions: [
+            // Device Status Badge (Phone / Laptop / USB)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.turquoise.withAlpha(30),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.turquoise),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.circle, size: 8, color: AppColors.success),
+                      const SizedBox(width: 6),
+                      Text(
+                        fpProvider.isDeviceBiometricsSupported
+                            ? 'البصمة جاهزة'
+                            : '${fpProvider.selectedDeviceModel}: متصل',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Prominent Button at Top: Enter Dashboard via Login
+            if (widget.isInitialScreen)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.admin_panel_settings_rounded, size: 16),
+                  label: const Text(
+                    'لوحة التحكم (تسجيل الدخول)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 2,
+                  ),
+                  onPressed: () {
+                    repo.logout();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 1. Top Welcome / Control Panel Access Banner
+              if (widget.isInitialScreen)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: AppColors.primaryBlue.withAlpha(20),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.fingerprint_rounded, color: AppColors.primaryBlue, size: 22),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.qr_code_scanner_rounded, color: AppColors.turquoise, size: 20),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'نظام تسجيل الحضور والانصراف المباشر للطلاب (بصمة حيوية • بطاقة باركود ذكية)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.login_rounded, size: 15),
+                        label: const Text('دخول لوحة التحكم', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryBlue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          repo.logout();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+
+              // 2. Attendance Mode Switcher (Dual / Fingerprint / Barcode)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.touch_app_rounded, size: 18, color: AppColors.primaryBlue),
+                        SizedBox(width: 6),
+                        Text(
+                          'طريقة التسجيل الحالية:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                    ),
+                    SegmentedButton<AttendanceInputMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: AttendanceInputMode.dual,
+                          icon: Icon(Icons.hub_rounded, size: 16),
+                          label: Text('المزدوج (بصمة + باركود)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        ButtonSegment(
+                          value: AttendanceInputMode.fingerprint,
+                          icon: Icon(Icons.fingerprint_rounded, size: 16),
+                          label: Text('بصمة فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        ButtonSegment(
+                          value: AttendanceInputMode.barcode,
+                          icon: Icon(Icons.qr_code_scanner_rounded, size: 16),
+                          label: Text('باركود فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                      selected: {_currentMode},
+                      onSelectionChanged: (newSelection) {
+                        setState(() {
+                          _currentMode = newSelection.first;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              // 3. Main Attendance Scanning Area (Clean & Focused)
+              Expanded(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 850),
+                      child: _buildMainInteractiveArea(fpProvider, repo, isDark),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMainInteractiveArea(FingerprintProvider fpProvider, AppRepository repo, bool isDark) {
+    return Column(
+      children: [
+        // Error Message Banner
+        if (_errorMessage != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: AppColors.danger.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.danger),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Scanning Zones
+        if (_currentMode == AttendanceInputMode.dual)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 650) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: _buildSensorArea(fpProvider, isDark)),
+                    Container(
+                      height: 380,
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    ),
+                    Expanded(child: _buildBarcodeArea(repo, isDark)),
+                  ],
+                );
+              } else {
+                return Column(
+                  children: [
+                    _buildSensorArea(fpProvider, isDark),
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 24),
+                    _buildBarcodeArea(repo, isDark),
+                  ],
+                );
+              }
+            },
+          )
+        else if (_currentMode == AttendanceInputMode.fingerprint)
+          _buildSensorArea(fpProvider, isDark)
+        else
+          _buildBarcodeArea(repo, isDark),
+
+        // Matched Attendance Result Card (Common for Fingerprint & Barcode)
+        _buildAttendanceResultCard(isDark),
+      ],
+    );
+  }
+
+  // Fingerprint Biometric Sensor Area
+  Widget _buildSensorArea(FingerprintProvider fpProvider, bool isDark) {
+    final isScanning = fpProvider.status == BiometricDeviceStatus.scanning;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Mode indicator pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.turquoise.withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.turquoise.withAlpha(80)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                fpProvider.isDeviceBiometricsSupported ? Icons.fingerprint : Icons.devices_rounded,
+                color: AppColors.turquoise,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'الوضع: ${fpProvider.selectedDeviceModel}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkBlue),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Big Fingerprint Touch Target
+        GestureDetector(
+          onTap: () => _scanFingerprint(useDeviceBiometrics: true),
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                border: Border.all(
+                  color: isScanning
+                      ? AppColors.warning
+                      : (_attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
+                          ? AppColors.success
+                          : AppColors.turquoise),
+                  width: 6,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
+                            ? AppColors.success
+                            : AppColors.turquoise)
+                        .withAlpha(60),
+                    blurRadius: 24,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: isScanning
+                    ? const CircularProgressIndicator(color: AppColors.turquoise, strokeWidth: 4)
+                    : Icon(
+                        Icons.fingerprint_rounded,
+                        size: 96,
+                        color: _attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
+                            ? AppColors.success
+                            : AppColors.turquoise,
+                      ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 18),
+
+        // Action Scan Buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton.icon(
+              icon: const Icon(Icons.fingerprint, size: 18),
+              label: const Text('بصمة الجهاز'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.turquoise,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => _scanFingerprint(useDeviceBiometrics: true),
+            ),
+            const SizedBox(width: 10),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.touch_app, size: 18),
+              label: const Text('لمس / USB'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryBlue,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () => _scanFingerprint(useDeviceBiometrics: false),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        const Text(
+          'المس مستشعر البصمة أو اضغط على الدائرة للمسح',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppColors.darkBlue,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          fpProvider.statusMessage,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white70 : Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Barcode & QR Scanner Viewfinder Area
+  Widget _buildBarcodeArea(AppRepository repo, bool isDark) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Mode indicator pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.purple.withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.purple.withAlpha(80)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.qr_code_scanner_rounded, color: Colors.purple, size: 18),
+              SizedBox(width: 8),
+              Text(
+                'قارئ الباركود والبطاقات الجامعية',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Animated Barcode Scanner Viewfinder Box with Laser
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                      ? AppColors.success
+                      : Colors.purple.withAlpha(140),
+                  width: 4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                            ? AppColors.success
+                            : Colors.purple)
+                        .withAlpha(40),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.qr_code_2_rounded,
+                    size: 80,
+                    color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                        ? AppColors.success
+                        : Colors.purple,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withAlpha(20),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'مرر بطاقة الطالب هنا',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Animated Scanning Laser Line
+            AnimatedBuilder(
+              animation: _laserAnimation,
+              builder: (context, child) {
+                return Positioned(
+                  top: 15 + (_laserAnimation.value * 160),
+                  child: Container(
+                    width: 170,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.transparent, Colors.redAccent, Colors.red, Colors.redAccent, Colors.transparent],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red.withAlpha(200),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 18),
+
+        // Automated Scan Guidance (Without manual ID entry)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.purple.withAlpha(15),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.purple.withAlpha(60)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.qr_code_scanner_rounded, size: 22, color: Colors.purple),
+              SizedBox(width: 8),
+              Text(
+                'المسح التلقائي المباشر للبطاقات وقارئ الباركود (USB)',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 10),
+        const Text(
+          'مرر بطاقة الطالب أمام قارئ الباركود وسيتم تسجيل الحضور تلقائياً وبشكل فوري',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // Common Attendance Result Card
+  Widget _buildAttendanceResultCard(bool isDark) {
+    if (_attendedStudent == null) return const SizedBox.shrink();
+    final isCheckOut = _lastAttendanceRecord?.checkOut != null;
+    final isQr = _lastAttendanceRecord?.method == 'qr';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(top: 20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isCheckOut ? AppColors.primaryBlue : AppColors.success,
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(30),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 28,
+            backgroundColor: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(30),
+            child: Icon(
+              isCheckOut ? Icons.logout_rounded : Icons.check_circle_rounded,
+              color: isCheckOut ? AppColors.primaryBlue : AppColors.success,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _attendedStudent!.fullName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isQr ? Colors.purple.withAlpha(20) : AppColors.turquoise.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: isQr ? Colors.purple : AppColors.turquoise),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isQr ? Icons.qr_code_2_rounded : Icons.fingerprint_rounded,
+                            size: 14,
+                            color: isQr ? Colors.purple : AppColors.turquoise,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isQr ? 'تم عبر الباركود' : 'تم عبر البصمة',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isQr ? Colors.purple : AppColors.turquoise,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        isCheckOut ? 'تم تسجيل الانصراف' : 'تم تسجيل الحضور',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isCheckOut ? AppColors.primaryBlue : AppColors.success,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'الرقم الجامعي: ${_attendedStudent!.universityId} • ${_attendedStudent!.collegeName ?? 'كلية علوم الحاسوب'}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withAlpha(20),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        'وقت الحضور: ${DateHelper.formatTimeString(_lastAttendanceRecord?.checkIn)}',
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCheckOut ? AppColors.primaryBlue.withAlpha(20) : Colors.grey.withAlpha(20),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isCheckOut
+                            ? 'وقت الانصراف: ${DateHelper.formatTimeString(_lastAttendanceRecord?.checkOut)}'
+                            : 'الانصراف: في انتظار التسجيل لاحقاً',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isCheckOut ? AppColors.primaryBlue : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

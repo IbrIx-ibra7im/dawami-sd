@@ -1,0 +1,330 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../data/models/academic_models.dart';
+import '../../data/models/student.dart';
+import '../../data/repositories/app_repository.dart';
+
+class AddEditStudentDialog extends StatefulWidget {
+  final Student? student;
+
+  const AddEditStudentDialog({super.key, this.student});
+
+  @override
+  State<AddEditStudentDialog> createState() => _AddEditStudentDialogState();
+}
+
+class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late TextEditingController _nameController;
+  late TextEditingController _idController;
+  late TextEditingController _phoneController;
+  late TextEditingController _emailController;
+  late TextEditingController _fpIdController;
+
+  int _selectedCollegeId = 1;
+  int _selectedDepartmentId = 1;
+  int _selectedLevelId = 1;
+  int _selectedSemesterId = 1;
+  String _status = 'نشط';
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final s = widget.student;
+    _nameController = TextEditingController(text: s?.fullName ?? '');
+    _idController = TextEditingController(text: s?.universityId ?? '');
+    _phoneController = TextEditingController(text: s?.phone ?? '09');
+    _emailController = TextEditingController(text: s?.email ?? '');
+    _fpIdController = TextEditingController(text: s?.fingerprintId ?? '');
+
+    if (s != null) {
+      _selectedCollegeId = s.collegeId;
+      _selectedDepartmentId = s.departmentId;
+      _selectedLevelId = s.levelId;
+      _selectedSemesterId = s.semesterId;
+      _status = s.status;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _idController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _fpIdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final repo = context.read<AppRepository>();
+      final uniId = _idController.text.trim();
+
+      String collegeName = 'كلية علوم الحاسوب والتنمية البشرية';
+      for (final c in repo.colleges) {
+        if (c.id == _selectedCollegeId) {
+          collegeName = c.name;
+          break;
+        }
+      }
+
+      String deptName = 'علوم الحاسوب';
+      for (final d in repo.departments) {
+        if (d.id == _selectedDepartmentId) {
+          deptName = d.name;
+          break;
+        }
+      }
+
+      String levelName = 'المستوى الأول';
+      for (final l in repo.levels) {
+        if (l.id == _selectedLevelId) {
+          levelName = l.name;
+          break;
+        }
+      }
+
+      final student = Student(
+        id: widget.student?.id,
+        universityId: uniId,
+        fullName: _nameController.text.trim(),
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+        collegeId: _selectedCollegeId,
+        departmentId: _selectedDepartmentId,
+        levelId: _selectedLevelId,
+        semesterId: _selectedSemesterId,
+        status: _status,
+        qrCode: 'DAWAMI:STUDENT:$uniId',
+        fingerprintId: _fpIdController.text.trim().isNotEmpty ? _fpIdController.text.trim() : null,
+        collegeName: collegeName,
+        departmentName: deptName,
+        levelName: levelName,
+      );
+
+      if (widget.student == null) {
+        await repo.addStudent(student);
+      } else {
+        await repo.updateStudent(student);
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.student == null
+                        ? '🔔 تنبيه: تمت إضافة الطالب "${student.fullName}" بنجاح إلى قاعدة البيانات'
+                        : '🔔 تنبيه: تم حفظ وتعديل بيانات الطالب "${student.fullName}" بنجاح',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.watch<AppRepository>();
+    final isEdit = widget.student != null;
+
+    final colleges = repo.colleges.isNotEmpty
+        ? repo.colleges
+        : [
+            College(id: 1, name: 'كلية علوم الحاسوب والتنمية البشرية', createdAt: DateTime.now().toIso8601String()),
+          ];
+    final validCollegeIds = colleges.map((c) => c.id).whereType<int>().toSet();
+    final effectiveCollegeId = validCollegeIds.contains(_selectedCollegeId)
+        ? _selectedCollegeId
+        : (validCollegeIds.isNotEmpty ? validCollegeIds.first : 1);
+
+    final departments = repo.departments.where((d) => d.collegeId == effectiveCollegeId).isNotEmpty
+        ? repo.departments.where((d) => d.collegeId == effectiveCollegeId).toList()
+        : (repo.departments.isNotEmpty
+            ? repo.departments
+            : [Department(id: 1, collegeId: 1, name: 'علوم الحاسوب')]);
+    final validDeptIds = departments.map((d) => d.id).toSet();
+    final effectiveDeptId = validDeptIds.contains(_selectedDepartmentId)
+        ? _selectedDepartmentId
+        : (validDeptIds.isNotEmpty ? validDeptIds.first : 1);
+
+    final levels = repo.levels.isNotEmpty
+        ? repo.levels
+        : [
+            AcademicLevel(id: 1, name: 'المستوى الأول', orderNo: 1),
+            AcademicLevel(id: 2, name: 'المستوى الثاني', orderNo: 2),
+            AcademicLevel(id: 3, name: 'المستوى الثالث', orderNo: 3),
+            AcademicLevel(id: 4, name: 'المستوى الرابع', orderNo: 4),
+          ];
+    final validLevelIds = levels.map((l) => l.id).toSet();
+    final effectiveLevelId = validLevelIds.contains(_selectedLevelId)
+        ? _selectedLevelId
+        : (validLevelIds.isNotEmpty ? validLevelIds.first : 1);
+
+    const validStatuses = ['نشط', 'متوقف', 'متخرج'];
+    final effectiveStatus = validStatuses.contains(_status) ? _status : 'نشط';
+
+    return AlertDialog(
+      title: Text(isEdit ? 'تعديل بيانات الطالب' : 'إضافة طالب جديد'),
+      content: SizedBox(
+        width: 500,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(labelText: 'الاسم الرباعي *'),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'يرجى إدخال اسم الطالب' : null,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _idController,
+                  decoration: const InputDecoration(labelText: 'الرقم الجامعي * (مثال: 2023-1590)'),
+                  validator: (v) => v == null || v.trim().isEmpty ? 'يرجى إدخال الرقم الجامعي' : null,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _phoneController,
+                        decoration: const InputDecoration(labelText: 'رقم الهاتف'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _emailController,
+                        decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: effectiveCollegeId,
+                        decoration: const InputDecoration(labelText: 'الكلية'),
+                        items: colleges.map((c) {
+                          return DropdownMenuItem<int>(value: c.id, child: Text(c.name));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedCollegeId = val);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: effectiveStatus,
+                        decoration: const InputDecoration(labelText: 'الحالة'),
+                        items: const [
+                          DropdownMenuItem(value: 'نشط', child: Text('نشط')),
+                          DropdownMenuItem(value: 'متوقف', child: Text('متوقف')),
+                          DropdownMenuItem(value: 'متخرج', child: Text('متخرج')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) setState(() => _status = val);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: effectiveDeptId,
+                        decoration: const InputDecoration(labelText: 'القسم الأكاديمي'),
+                        items: departments.map((d) {
+                          return DropdownMenuItem<int>(value: d.id, child: Text(d.name, overflow: TextOverflow.ellipsis));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedDepartmentId = val);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: effectiveLevelId,
+                        decoration: const InputDecoration(labelText: 'المستوى الدراسي'),
+                        items: levels.map((l) {
+                          return DropdownMenuItem<int>(value: l.id, child: Text(l.name));
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedLevelId = val);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _fpIdController,
+                  decoration: const InputDecoration(
+                    labelText: 'معرّف البصمة في الجهاز (مثال: FP-1045)',
+                    prefixIcon: Icon(Icons.fingerprint),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
+        ElevatedButton(
+          onPressed: _isSaving ? null : _save,
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
+          child: _isSaving
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+              : Text(isEdit ? 'حفظ التعديلات' : 'إضافة', style: const TextStyle(color: Colors.white)),
+        ),
+      ],
+    );
+  }
+}
+
