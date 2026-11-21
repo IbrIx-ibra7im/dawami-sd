@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/permissions/role_manager.dart';
+import '../../core/services/update_service.dart';
+import '../../data/models/update_info.dart';
 import '../../data/repositories/app_repository.dart';
 import '../authentication/login_screen.dart';
+import 'widgets/update_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,12 +18,79 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _uniController;
+  bool _isCheckingUpdate = false;
+  bool _autoCheckUpdates = true;
+  String _currentAppVersion = '1.0.0';
 
   @override
   void initState() {
     super.initState();
     final repo = context.read<AppRepository>();
     _uniController = TextEditingController(text: repo.universityName);
+    _loadUpdatePreferences();
+  }
+
+  Future<void> _loadUpdatePreferences() async {
+    final autoCheck = await UpdateService.instance.isAutoCheckEnabled();
+    final version = await UpdateService.instance.getCurrentVersion();
+    if (mounted) {
+      setState(() {
+        _autoCheckUpdates = autoCheck;
+        _currentAppVersion = version;
+      });
+    }
+  }
+
+  Future<void> _checkUpdatesManually() async {
+    setState(() {
+      _isCheckingUpdate = true;
+    });
+
+    final result = await UpdateService.instance.checkForUpdate();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingUpdate = false;
+    });
+
+    if (result.status == UpdateCheckStatus.updateAvailable && result.releaseInfo != null) {
+      UpdateDialog.show(
+        context,
+        currentVersion: result.currentVersion,
+        releaseInfo: result.releaseInfo!,
+      );
+    } else if (result.status == UpdateCheckStatus.upToDate || result.status == UpdateCheckStatus.noReleases) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: AppColors.success, size: 26),
+              SizedBox(width: 8),
+              Text('أنت تستخدم أحدث إصدار'),
+            ],
+          ),
+          content: Text(
+            'أنت تستخدم أحدث إصدار من تطبيق دوامي (الإصدار ${result.currentVersion}).\nلم يتم نشر أي تحديثات جديدة بعد على مستودع GitHub.',
+            style: const TextStyle(height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('حسناً'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.message),
+          backgroundColor: result.status == UpdateCheckStatus.offline ? AppColors.warning : AppColors.danger,
+        ),
+      );
+    }
   }
 
   @override
@@ -320,6 +390,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('الوضع الليلي (Dark Mode)'),
                 value: repo.isDarkMode,
                 onChanged: (val) => repo.toggleTheme(val),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // GitHub Releases & In-App Updates Card
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.system_update_rounded, color: AppColors.primaryBlue, size: 22),
+                          SizedBox(width: 8),
+                          Text(
+                            'تحديثات التطبيق (GitHub)',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.turquoise.withAlpha(25),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.turquoise.withAlpha(60)),
+                        ),
+                        child: Text(
+                          'الإصدار المثبت: v$_currentAppVersion',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkBlue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'التحقق المباشر من التحديثات والإصدارات الجديدة المنشورة على مستودع GitHub الرسمي مع إمكانية تنزيل وتثبيت أحدث حزمة APK مباشرة.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+                  ),
+                  const SizedBox(height: 14),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'التحقق التلقائي عند بدء التشغيل',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'تنبيهك بهدوء عند فتح التطبيق إذا كان هناك إصدار جديد متوفر',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    value: _autoCheckUpdates,
+                    // ignore: deprecated_member_use
+                    activeColor: AppColors.primaryBlue,
+                    onChanged: (val) async {
+                      setState(() {
+                        _autoCheckUpdates = val;
+                      });
+                      await UpdateService.instance.setAutoCheckEnabled(val);
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          icon: _isCheckingUpdate
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.sync_rounded, size: 18),
+                          label: Text(
+                            _isCheckingUpdate ? 'جاري الفحص...' : 'البحث عن تحديثات الآن',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: _isCheckingUpdate ? null : _checkUpdatesManually,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.open_in_browser_rounded, size: 18),
+                        label: const Text('مستودع GitHub'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => UpdateService.instance.openReleasesPage(),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
 

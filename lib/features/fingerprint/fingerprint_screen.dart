@@ -10,6 +10,9 @@ import '../../data/repositories/app_repository.dart';
 import '../authentication/login_screen.dart';
 import '../fingerprint/fingerprint_provider.dart';
 import '../qr_scanner/barcode_camera_dialog.dart';
+import '../../core/services/update_service.dart';
+import '../../data/models/update_info.dart';
+import '../settings/widgets/update_dialog.dart';
 
 import '../../data/models/biometric_models.dart';
 
@@ -65,8 +68,28 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _keyboardFocusNode.requestFocus();
+        _checkUpdatesSilently();
       }
     });
+  }
+
+  Future<void> _checkUpdatesSilently() async {
+    try {
+      final updateService = UpdateService.instance;
+      final autoCheck = await updateService.isAutoCheckEnabled();
+      if (!autoCheck || !mounted) return;
+
+      final result = await updateService.checkForUpdate();
+      if (result.status == UpdateCheckStatus.updateAvailable && result.releaseInfo != null && mounted) {
+        UpdateDialog.show(
+          context,
+          currentVersion: result.currentVersion,
+          releaseInfo: result.releaseInfo!,
+        );
+      }
+    } catch (_) {
+      // التحقق التلقائي عند بدء التشغيل يكون صامتاً ولا يزعج المستخدم بأي أخطاء شبكة
+    }
   }
 
   @override
