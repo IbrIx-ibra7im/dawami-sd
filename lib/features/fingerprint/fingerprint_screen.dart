@@ -9,6 +9,7 @@ import '../../data/models/attendance_record.dart';
 import '../../data/repositories/app_repository.dart';
 import '../authentication/login_screen.dart';
 import '../fingerprint/fingerprint_provider.dart';
+import '../qr_scanner/barcode_camera_dialog.dart';
 
 import '../../data/models/biometric_models.dart';
 
@@ -207,73 +208,15 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     }
   }
 
-  void _showBarcodeScanDialog() {
-    final controller = TextEditingController();
-    showDialog(
+  Future<void> _openCameraBarcodeScanner() async {
+    final scannedCode = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.qr_code_scanner_rounded, color: Colors.purple),
-            SizedBox(width: 8),
-            Text('قراءة الباركود / بطاقة الطالب'),
-          ],
-        ),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'مرر بطاقة الطالب أمام قارئ الباركود أو أدخل رقم البطاقة / الرقم الجامعي:',
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: 'رمز الباركود أو الرقم الجامعي',
-                  hintText: 'مثال: 2023-1045 أو DAWAMI:STUDENT:...',
-                  prefixIcon: const Icon(Icons.qr_code_2, color: Colors.purple),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                onSubmitted: (val) {
-                  final clean = val.trim();
-                  if (clean.isNotEmpty) {
-                    Navigator.pop(ctx);
-                    _scanBarcode(clean);
-                  }
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.check_rounded, size: 18),
-            label: const Text('تسجيل الحضور'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-            onPressed: () {
-              final clean = controller.text.trim();
-              if (clean.isNotEmpty) {
-                Navigator.pop(ctx);
-                _scanBarcode(clean);
-              }
-            },
-          ),
-        ],
-      ),
+      builder: (_) => const BarcodeCameraDialog(),
     );
+
+    if (scannedCode != null && scannedCode.trim().isNotEmpty) {
+      _scanBarcode(scannedCode.trim());
+    }
   }
 
   @override
@@ -710,9 +653,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
 
         const SizedBox(height: 20),
 
-        // Animated Barcode Scanner Viewfinder Box with Laser (Clickable)
+        // Animated Barcode Scanner Viewfinder Box with Laser (Clickable to open camera)
         GestureDetector(
-          onTap: _showBarcodeScanDialog,
+          onTap: _openCameraBarcodeScanner,
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -796,11 +739,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
 
         const SizedBox(height: 18),
 
-        // Action Scan Button for Barcode
+        // Action Scan Button for Barcode (Opens Camera)
         ElevatedButton.icon(
-          icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+          icon: const Icon(Icons.camera_alt_rounded, size: 20),
           label: const Text(
-            'قراءة الباركود',
+            'قراءة الباركود (فتح الكاميرا)',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           ),
           style: ElevatedButton.styleFrom(
@@ -810,13 +753,13 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             elevation: 2,
           ),
-          onPressed: _showBarcodeScanDialog,
+          onPressed: _openCameraBarcodeScanner,
         ),
 
         const SizedBox(height: 12),
 
         const Text(
-          'اضغط على الزر لقراءة الباركود أو مرر البطاقة',
+          'اضغط على الزر لفتح الكاميرا أو مرر بطاقة الطالب',
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
