@@ -739,7 +739,56 @@ class HiveHelper {
         }
       }
 
-      // 2. Pull latest students from Supabase into Hive
+      // 2. Upload local students in Hive to Supabase (Two-way push)
+      try {
+        for (final key in _studentsBox.keys) {
+          final sRaw = _studentsBox.get(key);
+          if (sRaw != null) {
+            final map = Map<String, dynamic>.from(sRaw);
+            await client.from('students').upsert({
+              'university_id': map['university_id'],
+              'full_name': map['full_name'],
+              'phone': map['phone'] ?? '',
+              'email': map['email'] ?? '',
+              'college_id': map['college_id'] ?? 1,
+              'department_id': map['department_id'] ?? 1,
+              'level_id': map['level_id'] ?? 1,
+              'semester_id': map['semester_id'] ?? 1,
+              'status': map['status'] ?? 'نشط',
+              'qr_code': map['qr_code'] ?? 'DAWAMI:STUDENT:${map['university_id']}',
+              'fingerprint_id': map['fingerprint_id'],
+            }, onConflict: 'university_id');
+            syncedCount++;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Push students to Supabase error: $e');
+      }
+
+      // 3. Upload local attendance records in Hive to Supabase (Two-way push)
+      try {
+        for (final key in _attendanceBox.keys) {
+          final aRaw = _attendanceBox.get(key);
+          if (aRaw != null) {
+            final map = Map<String, dynamic>.from(aRaw);
+            await client.from('attendance').upsert({
+              'id': map['id'],
+              'student_id': map['student_id'],
+              'session_id': map['session_id'] ?? 1,
+              'check_in': map['check_in'],
+              'check_out': map['check_out'],
+              'method': map['method'] ?? 'qr',
+              'status': map['status'] ?? 'حاضر',
+              'device_id': map['device_id'] ?? 'ZK-F18',
+            }, onConflict: 'id');
+            syncedCount++;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Push attendance to Supabase error: $e');
+      }
+
+      // 4. Pull latest students from Supabase into Hive
       try {
         final remoteStudents = await client.from('students').select();
         for (final r in remoteStudents) {
@@ -753,7 +802,7 @@ class HiveHelper {
         if (kDebugMode) print('Pull remote students error: $e');
       }
 
-      // 3. Pull latest attendance records from Supabase into Hive
+      // 5. Pull latest attendance records from Supabase into Hive
       try {
         final remoteAttendance = await client.from('attendance').select();
         for (final r in remoteAttendance) {

@@ -25,12 +25,12 @@ class DashboardScreen extends StatelessWidget {
     final repo = context.watch<AppRepository>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final totalStudents = repo.totalStudentsCount > 0 ? repo.totalStudentsCount : 1240;
-    final present = repo.presentCount > 0 ? repo.presentCount : 128;
-    final absent = repo.absentCount > 0 ? repo.absentCount : 34;
-    final late = repo.lateCount > 0 ? repo.lateCount : 9;
-    final fingerprintCount = repo.fingerprintAttendanceCount > 0 ? repo.fingerprintAttendanceCount : 61;
-    final qrCount = repo.qrAttendanceCount > 0 ? repo.qrAttendanceCount : 67;
+    final totalStudents = repo.totalStudentsCount;
+    final present = repo.presentCount;
+    final absent = repo.absentCount;
+    final late = repo.lateCount;
+    final fingerprintCount = repo.fingerprintAttendanceCount;
+    final qrCount = repo.qrAttendanceCount;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
@@ -517,7 +517,6 @@ class DashboardScreen extends StatelessWidget {
   Widget _buildCollegeChartCard(bool isDark, AppRepository repo) {
     // 5 Departments of the Faculty of Computer Science & Human Development
     // 1: علوم الحاسوب, 2: تقنية المعلومات, 3: نظم المعلومات, 4: التنمية البشرية وتطبيقات الحاسوب, 5: هندسة البرمجيات
-    final deptBasePcts = [88.0, 75.0, 80.0, 85.0, 92.0];
     final attendedIds = repo.todayAttendance
         .where((a) => a.status == 'حاضر' || a.status == 'متأخر' || a.status == 'تم الانصراف')
         .map((a) => a.studentId)
@@ -529,9 +528,9 @@ class DashboardScreen extends StatelessWidget {
       if (deptStudents.isNotEmpty && attendedIds.isNotEmpty) {
         final presentCount = deptStudents.where((s) => attendedIds.contains(s.id)).length;
         final pct = (presentCount / deptStudents.length * 100);
-        pcts.add(pct > 0 ? pct : deptBasePcts[deptId - 1]);
+        pcts.add(pct);
       } else {
-        pcts.add(deptBasePcts[deptId - 1]);
+        pcts.add(0.0);
       }
     }
 
@@ -623,8 +622,8 @@ class DashboardScreen extends StatelessWidget {
 
   Widget _buildMethodBreakdownCard(int fingerprintCount, int qrCount, bool isDark) {
     final total = fingerprintCount + qrCount;
-    final fpPercent = total > 0 ? ((fingerprintCount / total) * 100).toInt() : 50;
-    final qrPercent = total > 0 ? ((qrCount / total) * 100).toInt() : 50;
+    final fpPercent = total > 0 ? ((fingerprintCount / total) * 100).toInt() : 0;
+    final qrPercent = total > 0 ? ((qrCount / total) * 100).toInt() : 0;
 
     return Container(
       padding: const EdgeInsets.all(22),
