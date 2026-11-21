@@ -207,6 +207,75 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     }
   }
 
+  void _showBarcodeScanDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.qr_code_scanner_rounded, color: Colors.purple),
+            SizedBox(width: 8),
+            Text('قراءة الباركود / بطاقة الطالب'),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'مرر بطاقة الطالب أمام قارئ الباركود أو أدخل رقم البطاقة / الرقم الجامعي:',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'رمز الباركود أو الرقم الجامعي',
+                  hintText: 'مثال: 2023-1045 أو DAWAMI:STUDENT:...',
+                  prefixIcon: const Icon(Icons.qr_code_2, color: Colors.purple),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onSubmitted: (val) {
+                  final clean = val.trim();
+                  if (clean.isNotEmpty) {
+                    Navigator.pop(ctx);
+                    _scanBarcode(clean);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check_rounded, size: 18),
+            label: const Text('تسجيل الحضور'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.purple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onPressed: () {
+              final clean = controller.text.trim();
+              if (clean.isNotEmpty) {
+                Navigator.pop(ctx);
+                _scanBarcode(clean);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final fpProvider = context.watch<FingerprintProvider>();
@@ -641,113 +710,123 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
 
         const SizedBox(height: 20),
 
-        // Animated Barcode Scanner Viewfinder Box with Laser
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 190,
-              height: 190,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceDark : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
-                      ? AppColors.success
-                      : Colors.purple.withAlpha(140),
-                  width: 4,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
-                            ? AppColors.success
-                            : Colors.purple)
-                        .withAlpha(40),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.qr_code_2_rounded,
-                    size: 80,
+        // Animated Barcode Scanner Viewfinder Box with Laser (Clickable)
+        GestureDetector(
+          onTap: _showBarcodeScanDialog,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Container(
+                width: 190,
+                height: 190,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
                     color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
                         ? AppColors.success
-                        : Colors.purple,
+                        : Colors.purple.withAlpha(140),
+                    width: 4,
                   ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.purple.withAlpha(20),
-                      borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                              ? AppColors.success
+                              : Colors.purple)
+                          .withAlpha(40),
+                      blurRadius: 20,
+                      spreadRadius: 2,
                     ),
-                    child: const Text(
-                      'مرر بطاقة الطالب هنا',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.qr_code_2_rounded,
+                      size: 80,
+                      color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                          ? AppColors.success
+                          : Colors.purple,
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Animated Scanning Laser Line
-            AnimatedBuilder(
-              animation: _laserAnimation,
-              builder: (context, child) {
-                return Positioned(
-                  top: 15 + (_laserAnimation.value * 160),
-                  child: Container(
-                    width: 170,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.transparent, Colors.redAccent, Colors.red, Colors.redAccent, Colors.transparent],
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.purple.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withAlpha(200),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
+                      child: const Text(
+                        'مرر بطاقة الطالب هنا',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple),
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+                  ],
+                ),
+              ),
 
-        const SizedBox(height: 18),
-
-        // Automated Scan Guidance (Without manual ID entry)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.purple.withAlpha(15),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.purple.withAlpha(60)),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.qr_code_scanner_rounded, size: 22, color: Colors.purple),
-              SizedBox(width: 8),
-              Text(
-                'المسح التلقائي المباشر للبطاقات وقارئ الباركود (USB)',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple),
+              // Animated Scanning Laser Line
+              AnimatedBuilder(
+                animation: _laserAnimation,
+                builder: (context, child) {
+                  return Positioned(
+                    top: 15 + (_laserAnimation.value * 160),
+                    child: Container(
+                      width: 170,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.transparent, Colors.redAccent, Colors.red, Colors.redAccent, Colors.transparent],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.red.withAlpha(200),
+                            blurRadius: 8,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 18),
+
+        // Action Scan Button for Barcode
+        ElevatedButton.icon(
+          icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+          label: const Text(
+            'قراءة الباركود',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.purple,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 2,
+          ),
+          onPressed: _showBarcodeScanDialog,
+        ),
+
+        const SizedBox(height: 12),
+
         const Text(
-          'مرر بطاقة الطالب أمام قارئ الباركود وسيتم تسجيل الحضور تلقائياً وبشكل فوري',
+          'اضغط على الزر لقراءة الباركود أو مرر البطاقة',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.purple,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'متوافق مع قارئ الباركود USB والمسح المباشر',
           style: TextStyle(fontSize: 12, color: Colors.grey),
           textAlign: TextAlign.center,
         ),
