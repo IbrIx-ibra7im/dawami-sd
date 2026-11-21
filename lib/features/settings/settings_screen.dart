@@ -81,6 +81,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 20),
 
+            // Attendance Methods Configuration (Admin Control)
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withAlpha(25),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.tune_rounded, color: AppColors.primaryBlue, size: 22),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'إدارة وتفعيل وسائل الحضور (خاص بالمسؤول)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'يمكن للمدير تفعيل أو إيقاف أي طريقة لتسجيل الحضور، بحيث تختفي تماماً من شاشة تسجيل الحضور والانصراف عند إيقافها:',
+                    style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.4),
+                  ),
+                  const SizedBox(height: 14),
+                  SwitchListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: repo.isFingerprintEnabled ? AppColors.turquoise.withAlpha(15) : Colors.grey.withAlpha(15),
+                    secondary: Icon(
+                      Icons.fingerprint_rounded,
+                      color: repo.isFingerprintEnabled ? AppColors.turquoise : Colors.grey,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'تسجيل الحضور بالبصمة الحيوية',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      repo.isFingerprintEnabled
+                          ? 'مفعلة وتظهر في شاشة تسجيل الحضور والانصراف'
+                          : 'معطلة ومخفية تماماً من شاشة الحضور',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: repo.isFingerprintEnabled ? AppColors.turquoise : Colors.grey,
+                      ),
+                    ),
+                    value: repo.isFingerprintEnabled,
+                    // ignore: deprecated_member_use
+                    activeColor: AppColors.turquoise,
+                    onChanged: (val) async {
+                      try {
+                        await repo.toggleFingerprintMethod(val);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(val ? 'تم تفعيل البصمة وإظهارها في شاشة الحضور' : 'تم إيقاف وإخفاء البصمة من شاشة الحضور'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: repo.isBarcodeEnabled ? Colors.purple.withAlpha(15) : Colors.grey.withAlpha(15),
+                    secondary: Icon(
+                      Icons.qr_code_scanner_rounded,
+                      color: repo.isBarcodeEnabled ? Colors.purple : Colors.grey,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'تسجيل الحضور بالباركود وبطاقة الطالب',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      repo.isBarcodeEnabled
+                          ? 'مفعلة وتظهر في شاشة تسجيل الحضور والكاميرا'
+                          : 'معطلة ومخفية تماماً من شاشة الحضور',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: repo.isBarcodeEnabled ? Colors.purple : Colors.grey,
+                      ),
+                    ),
+                    value: repo.isBarcodeEnabled,
+                    // ignore: deprecated_member_use
+                    activeColor: Colors.purple,
+                    onChanged: (val) async {
+                      try {
+                        await repo.toggleBarcodeMethod(val);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(val ? 'تم تفعيل الباركود وإظهاره في شاشة الحضور' : 'تم إيقاف وإخفاء الباركود من شاشة الحضور'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
             // Supabase Cloud Built-in Integration Status (Permanently linked in code)
             Container(
               padding: const EdgeInsets.all(18),

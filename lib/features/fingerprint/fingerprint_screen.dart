@@ -225,6 +225,17 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     final repo = context.watch<AppRepository>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    final fpEnabled = repo.isFingerprintEnabled;
+    final bcEnabled = repo.isBarcodeEnabled;
+
+    // تكييف الوضع التلقائي إذا تم تعطيل إحدى الوسيلتين بواسطة الإدارة
+    AttendanceInputMode activeMode = _currentMode;
+    if (!fpEnabled && bcEnabled) {
+      activeMode = AttendanceInputMode.barcode;
+    } else if (fpEnabled && !bcEnabled) {
+      activeMode = AttendanceInputMode.fingerprint;
+    }
+
     return KeyboardListener(
       focusNode: _keyboardFocusNode,
       autofocus: true,
@@ -232,14 +243,24 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
       child: Scaffold(
         backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
         appBar: AppBar(
-          title: const Row(
+          title: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.fingerprint_rounded, size: 22),
-              SizedBox(width: 4),
-              Icon(Icons.qr_code_2_rounded, size: 22),
-              SizedBox(width: 8),
-              Text('تسجيل الحضور بالبصمة الحيوية والباركود'),
+              if (fpEnabled) ...[
+                const Icon(Icons.fingerprint_rounded, size: 22),
+                const SizedBox(width: 4),
+              ],
+              if (bcEnabled) ...[
+                const Icon(Icons.qr_code_2_rounded, size: 22),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                (fpEnabled && bcEnabled)
+                    ? 'تسجيل الحضور بالبصمة الحيوية والباركود'
+                    : (fpEnabled
+                        ? 'تسجيل الحضور بالبصمة الحيوية'
+                        : 'تسجيل الحضور ببطاقة الباركود الذكية'),
+              ),
             ],
           ),
           backgroundColor: AppColors.darkBlue,
@@ -252,36 +273,65 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     )
                   : null),
           actions: [
-            // Device Status Badge (Phone / Laptop / USB)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.turquoise.withAlpha(30),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.turquoise),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.circle, size: 8, color: AppColors.success),
-                      const SizedBox(width: 6),
-                      Text(
-                        fpProvider.isDeviceBiometricsSupported
-                            ? 'البصمة جاهزة'
-                            : '${fpProvider.selectedDeviceModel}: متصل',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+            // شارة حالة الجهاز (تتكيف حسب تفعيل البصمة أو الباركود)
+            if (fpEnabled)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.turquoise.withAlpha(30),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.turquoise),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.circle, size: 8, color: AppColors.success),
+                        const SizedBox(width: 6),
+                        Text(
+                          fpProvider.isDeviceBiometricsSupported
+                              ? 'البصمة جاهزة'
+                              : '${fpProvider.selectedDeviceModel}: متصل',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else if (bcEnabled)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withAlpha(35),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.purpleAccent),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.qr_code_scanner_rounded, size: 14, color: Colors.purpleAccent),
+                        SizedBox(width: 6),
+                        Text(
+                          'الباركود نشط',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
             // Prominent Button at Top: Enter Dashboard via Login
             if (widget.isInitialScreen)
               Padding(
@@ -321,14 +371,22 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   color: AppColors.primaryBlue.withAlpha(20),
                   child: Row(
                     children: [
-                      const Icon(Icons.fingerprint_rounded, color: AppColors.primaryBlue, size: 22),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.qr_code_scanner_rounded, color: AppColors.turquoise, size: 20),
-                      const SizedBox(width: 10),
-                      const Expanded(
+                      if (fpEnabled) ...[
+                        const Icon(Icons.fingerprint_rounded, color: AppColors.primaryBlue, size: 22),
+                        const SizedBox(width: 4),
+                      ],
+                      if (bcEnabled) ...[
+                        const Icon(Icons.qr_code_scanner_rounded, color: Colors.purple, size: 20),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
                         child: Text(
-                          'نظام تسجيل الحضور والانصراف المباشر للطلاب (بصمة حيوية • بطاقة باركود ذكية)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          (fpEnabled && bcEnabled)
+                              ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بصمة حيوية • بطاقة باركود ذكية)'
+                              : (fpEnabled
+                                  ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (البصمة الحيوية)'
+                                  : 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بطاقة الباركود الذكية)'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                       ),
                       ElevatedButton.icon(
@@ -352,51 +410,52 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   ),
                 ),
 
-              // 2. Attendance Mode Switcher (Dual / Fingerprint / Barcode)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: isDark ? AppColors.surfaceDark : Colors.white,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(Icons.touch_app_rounded, size: 18, color: AppColors.primaryBlue),
-                        SizedBox(width: 6),
-                        Text(
-                          'طريقة التسجيل الحالية:',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                    SegmentedButton<AttendanceInputMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: AttendanceInputMode.dual,
-                          icon: Icon(Icons.hub_rounded, size: 16),
-                          label: Text('المزدوج (بصمة + باركود)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        ButtonSegment(
-                          value: AttendanceInputMode.fingerprint,
-                          icon: Icon(Icons.fingerprint_rounded, size: 16),
-                          label: Text('بصمة فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                        ButtonSegment(
-                          value: AttendanceInputMode.barcode,
-                          icon: Icon(Icons.qr_code_scanner_rounded, size: 16),
-                          label: Text('باركود فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                        ),
-                      ],
-                      selected: {_currentMode},
-                      onSelectionChanged: (newSelection) {
-                        setState(() {
-                          _currentMode = newSelection.first;
-                        });
-                      },
-                    ),
-                  ],
+              // 2. Attendance Mode Switcher (يظهر فقط في حال تفعيل كلتا الوسيلتين معاً بواسطة الإدارة)
+              if (fpEnabled && bcEnabled)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.touch_app_rounded, size: 18, color: AppColors.primaryBlue),
+                          SizedBox(width: 6),
+                          Text(
+                            'طريقة التسجيل الحالية:',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                      SegmentedButton<AttendanceInputMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: AttendanceInputMode.dual,
+                            icon: Icon(Icons.hub_rounded, size: 16),
+                            label: Text('المزدوج (بصمة + باركود)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                          ButtonSegment(
+                            value: AttendanceInputMode.fingerprint,
+                            icon: Icon(Icons.fingerprint_rounded, size: 16),
+                            label: Text('بصمة فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                          ButtonSegment(
+                            value: AttendanceInputMode.barcode,
+                            icon: Icon(Icons.qr_code_scanner_rounded, size: 16),
+                            label: Text('باركود فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ],
+                        selected: {activeMode},
+                        onSelectionChanged: (newSelection) {
+                          setState(() {
+                            _currentMode = newSelection.first;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
               const Divider(height: 1),
 
@@ -407,7 +466,7 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 850),
-                      child: _buildMainInteractiveArea(fpProvider, repo, isDark),
+                      child: _buildMainInteractiveArea(fpProvider, repo, isDark, fpEnabled, bcEnabled, activeMode),
                     ),
                   ),
                 ),
@@ -419,7 +478,14 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     );
   }
 
-  Widget _buildMainInteractiveArea(FingerprintProvider fpProvider, AppRepository repo, bool isDark) {
+  Widget _buildMainInteractiveArea(
+    FingerprintProvider fpProvider,
+    AppRepository repo,
+    bool isDark,
+    bool fpEnabled,
+    bool bcEnabled,
+    AttendanceInputMode activeMode,
+  ) {
     return Column(
       children: [
         // Error Message Banner
@@ -447,41 +513,47 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             ),
           ),
 
-        // Scanning Zones
-        if (_currentMode == AttendanceInputMode.dual)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 650) {
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildSensorArea(fpProvider, isDark)),
-                    Container(
-                      height: 380,
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                    Expanded(child: _buildBarcodeArea(repo, isDark)),
-                  ],
-                );
-              } else {
-                return Column(
-                  children: [
-                    _buildSensorArea(fpProvider, isDark),
-                    const SizedBox(height: 24),
-                    const Divider(),
-                    const SizedBox(height: 24),
-                    _buildBarcodeArea(repo, isDark),
-                  ],
-                );
-              }
-            },
-          )
-        else if (_currentMode == AttendanceInputMode.fingerprint)
-          _buildSensorArea(fpProvider, isDark)
-        else
+        // Scanning Zones (يتم إظهار وإخفاء المناطق بحسب تفعيل الإدارة للبصمة والباركود)
+        if (fpEnabled && bcEnabled) ...[
+          if (activeMode == AttendanceInputMode.dual)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 650) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildSensorArea(fpProvider, isDark)),
+                      Container(
+                        height: 380,
+                        width: 1,
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      ),
+                      Expanded(child: _buildBarcodeArea(repo, isDark)),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      _buildSensorArea(fpProvider, isDark),
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 24),
+                      _buildBarcodeArea(repo, isDark),
+                    ],
+                  );
+                }
+              },
+            )
+          else if (activeMode == AttendanceInputMode.fingerprint)
+            _buildSensorArea(fpProvider, isDark)
+          else
+            _buildBarcodeArea(repo, isDark),
+        ] else if (fpEnabled) ...[
+          _buildSensorArea(fpProvider, isDark),
+        ] else if (bcEnabled) ...[
           _buildBarcodeArea(repo, isDark),
+        ],
 
         // Matched Attendance Result Card (Common for Fingerprint & Barcode)
         _buildAttendanceResultCard(isDark),

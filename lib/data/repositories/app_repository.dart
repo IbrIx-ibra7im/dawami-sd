@@ -20,6 +20,8 @@ class AppRepository extends ChangeNotifier {
   String _universityName = 'جامعة دنقلا - كلية علوم الحاسوب والتنمية البشرية';
   bool _isDarkMode = false;
   String _deviceName = 'ZK-F18';
+  bool _isFingerprintEnabled = true;
+  bool _isBarcodeEnabled = true;
 
   // Current logged in user (Requires authentication before entering control panel)
   bool _isLoggedIn = false;
@@ -45,6 +47,8 @@ class AppRepository extends ChangeNotifier {
   // Getters
   String get universityName => _universityName;
   bool get isDarkMode => _isDarkMode;
+  bool get isFingerprintEnabled => _isFingerprintEnabled;
+  bool get isBarcodeEnabled => _isBarcodeEnabled;
   String get deviceName => _deviceName;
   bool get isLoggedIn => _isLoggedIn;
   UserProfile get currentUser => _currentUser;
@@ -95,6 +99,16 @@ class AppRepository extends ChangeNotifier {
 
       try {
         _deviceName = await _hive.getSetting('device_name', defaultValue: 'ZK-F18');
+      } catch (_) {}
+
+      try {
+        final fpSetting = await _hive.getSetting('enable_fingerprint', defaultValue: 'true');
+        _isFingerprintEnabled = fpSetting != 'false';
+      } catch (_) {}
+
+      try {
+        final bcSetting = await _hive.getSetting('enable_barcode', defaultValue: 'true');
+        _isBarcodeEnabled = bcSetting != 'false';
       } catch (_) {}
 
       try {
@@ -663,7 +677,31 @@ class AppRepository extends ChangeNotifier {
     }
   }
 
-  // --- Settings ---
+  // --- Settings & Attendance Methods Control ---
+  Future<void> toggleFingerprintMethod(bool enabled) async {
+    if (!enabled && !_isBarcodeEnabled) {
+      throw Exception('لا يمكن تعطيل البصمة والباركود معاً. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
+    }
+    _isFingerprintEnabled = enabled;
+    await _hive.setSetting('enable_fingerprint', enabled ? 'true' : 'false');
+    try {
+      await _db.setSetting('enable_fingerprint', enabled ? 'true' : 'false');
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> toggleBarcodeMethod(bool enabled) async {
+    if (!enabled && !_isFingerprintEnabled) {
+      throw Exception('لا يمكن تعطيل البصمة والباركود معاً. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
+    }
+    _isBarcodeEnabled = enabled;
+    await _hive.setSetting('enable_barcode', enabled ? 'true' : 'false');
+    try {
+      await _db.setSetting('enable_barcode', enabled ? 'true' : 'false');
+    } catch (_) {}
+    notifyListeners();
+  }
+
   Future<void> updateUniversityName(String name) async {
     _universityName = name;
     await _db.setSetting('university_name', name);
