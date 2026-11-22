@@ -54,9 +54,10 @@ class StudentService {
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
         final remote = await _supabase.client!
-            .from('students')
-            .select('full_name, university_id')
-            .eq('university_id', cleanUniversityId)
+            .from('dawami_records')
+            .select('full_name, student_number')
+            .eq('record_type', 'student')
+            .eq('student_number', cleanUniversityId)
             .maybeSingle();
         if (remote != null) {
           throw Exception('الرقم الجامعي ($cleanUniversityId) مسجل مسبقاً في قاعدة بيانات Supabase للطالب: ${remote['full_name']}');

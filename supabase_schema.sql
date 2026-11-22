@@ -1,180 +1,32 @@
 -- ============================================================
--- نظام دوامي (DAWAMI) - تصميم قاعدة بيانات Supabase (PostgreSQL)
--- مواصفات المشروع: 16 جدولاً + سياسات الأمان RLS والفهارس والقيود
+-- نظام دوامي (DAWAMI) - تصميم الجدول الموحد الوحيد لقاعدة البيانات (Single-Table Design)
+-- جدول واحد فقط لحفظ كافة البيانات (الطلاب، الحضور، الإعدادات) والمزامنة المباشرة مع Hive
 -- ============================================================
 
--- تفعيل امتداد توليد UUIDs
+-- 1. تفعيل امتداد توليد UUIDs
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. جدول الكليات (colleges)
-CREATE TABLE IF NOT EXISTS colleges (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. جدول الأقسام (departments)
-CREATE TABLE IF NOT EXISTS departments (
-    id SERIAL PRIMARY KEY,
-    college_id INT NOT NULL REFERENCES colleges(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. جدول المستويات الدراسية (academic_levels)
-CREATE TABLE IF NOT EXISTS academic_levels (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    order_no INT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. جدول الفصول الدراسية (semesters)
-CREATE TABLE IF NOT EXISTS semesters (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(150) NOT NULL,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 5. جدول المقررات (courses)
-CREATE TABLE IF NOT EXISTS courses (
-    id SERIAL PRIMARY KEY,
-    department_id INT NOT NULL REFERENCES departments(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    code VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. جدول جلسات الحضور (attendance_sessions)
-CREATE TABLE IF NOT EXISTS attendance_sessions (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(150) NOT NULL DEFAULT 'جلسة الحضور اليومية',
-    session_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    status VARCHAR(50) NOT NULL DEFAULT 'نشطة',
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. جدول الطلاب (students) بمواصفات قاعدة بيانات Supabase الدقيقة
-CREATE TABLE IF NOT EXISTS public.students (
-  id uuid not null default gen_random_uuid (),
-  student_number character varying(50) not null,
-  full_name character varying(255) not null,
-  college character varying(255) not null default 'كلية علوم الحاسوب والتنمية البشرية'::character varying,
-  department character varying(255) not null default 'علوم الحاسوب'::character varying,
-  academic_level character varying(100) not null default 'المستوى الأول'::character varying,
-  phone character varying(30) not null,
-  status character varying(50) not null default 'نشط'::character varying,
-  created_at timestamp with time zone not null default now(),
-  updated_at timestamp with time zone not null default now(),
-  university_id character varying(50) null,
-  barcode_id character varying(100) null,
-  fingerprint_registered boolean null default false,
-  constraint students_pkey primary key (id),
-  constraint students_student_number_key unique (student_number)
-) TABLESPACE pg_default;
-
-create unique INDEX IF not exists idx_students_university_id_unique on public.students using btree (university_id) TABLESPACE pg_default
-where
-  (university_id is not null);
-
-CREATE INDEX IF NOT EXISTS idx_students_student_number ON public.students(student_number);
-CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON public.students(barcode_id);
-CREATE INDEX IF NOT EXISTS idx_students_full_name ON public.students(full_name);
-
--- 8. جدول الحضور (attendance) - مع منع التكرار Idempotent ومطابقة مواصفات المزامنة
-CREATE TABLE IF NOT EXISTS attendance (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_number VARCHAR(50),
-    university_id VARCHAR(50), -- متوافق مع الحقل السابق
-    student_name VARCHAR(255),
-    student_id INT REFERENCES students(id) ON DELETE CASCADE,
-    session_id INT REFERENCES attendance_sessions(id) ON DELETE CASCADE,
-    attendance_date DATE DEFAULT CURRENT_DATE,
-    attendance_time TIME DEFAULT CURRENT_TIME,
-    check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    check_out TIMESTAMPTZ,
-    method VARCHAR(50) NOT NULL, -- 'fingerprint', 'barcode', 'qr', 'manual'
-    status VARCHAR(50) NOT NULL DEFAULT 'حاضر', -- 'حاضر', 'متأخر', 'غائب', 'انصراف'
+-- 2. إنشاء الجدول الموحد الوحيد لكافة بيانات تطبيق دوامي
+CREATE TABLE IF NOT EXISTS public.dawami_records (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    record_type VARCHAR(50) NOT NULL,            -- نوع السجل: 'student' أو 'attendance' أو 'setting'
+    record_key VARCHAR(100) NOT NULL,           -- المفتاح الفريد (الرقم الجامعي للطالب أو معرّف سجل الحضور)
+    student_number VARCHAR(50),                 -- الرقم الجامعي المفهرس للبحث السريع
+    full_name VARCHAR(255),                     -- اسم الطالب كاملاً
+    barcode_id VARCHAR(100),                    -- معرّف الباركود / QR الخاص بالطالب
+    record_date DATE DEFAULT CURRENT_DATE,      -- تاريخ الحضور (YYYY-MM-DD)
+    record_time TIME DEFAULT CURRENT_TIME,      -- وقت الحضور (HH:mm)
+    method VARCHAR(50),                         -- طريقة التحقق: 'fingerprint' أو 'barcode' أو 'manual'
+    status VARCHAR(50) NOT NULL DEFAULT 'نشط',   -- حالة السجل: 'نشط' / 'حاضر' / 'منصرف'
     sync_status VARCHAR(50) NOT NULL DEFAULT 'مزامنة',
-    device_id VARCHAR(100) NOT NULL DEFAULT 'ZK-F18',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT unique_student_session UNIQUE (student_id, session_id)
+    data JSONB NOT NULL DEFAULT '{}'::jsonb,    -- كائن JSON يحتوي على كافة التفاصيل الإضافية للكيان
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT dawami_records_pkey PRIMARY KEY (id),
+    CONSTRAINT dawami_records_type_key UNIQUE (record_type, record_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_attendance_student_number ON attendance(student_number);
-CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(attendance_date);
-CREATE INDEX IF NOT EXISTS idx_attendance_sync_status ON attendance(sync_status);
-
--- 11. جدول الملفات الشخصية والمستخدمين (profiles)
-CREATE TABLE IF NOT EXISTS profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    full_name VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'viewer',
-    email VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 12. جدول المسؤولين والصلاحيات (admins)
-CREATE TABLE IF NOT EXISTS admins (
-    id SERIAL PRIMARY KEY,
-    profile_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    permissions TEXT NOT NULL,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 13. جدول الأجهزة (devices)
-CREATE TABLE IF NOT EXISTS devices (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(150) NOT NULL,
-    type VARCHAR(100) NOT NULL,
-    last_seen TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 14. جدول سجلات المزامنة (sync_logs)
-CREATE TABLE IF NOT EXISTS sync_logs (
-    id SERIAL PRIMARY KEY,
-    device_id VARCHAR(100),
-    result VARCHAR(50) NOT NULL,
-    error TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 15. جدول سجل التدقيق والتعديلات (audit_logs)
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id SERIAL PRIMARY KEY,
-    user_id UUID REFERENCES auth.users(id),
-    action VARCHAR(100) NOT NULL,
-    table_name VARCHAR(100) NOT NULL,
-    old_data JSONB,
-    new_data JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 16. جدول إعدادات التطبيق (app_settings)
-CREATE TABLE IF NOT EXISTS app_settings (
-    key VARCHAR(100) PRIMARY KEY,
-    value JSONB NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- ============================================================
--- الفهارس لتحسين الأداء (Indexes)
--- ============================================================
-CREATE INDEX IF NOT EXISTS idx_students_university_id ON students(university_id);
-CREATE INDEX IF NOT EXISTS idx_students_college_id ON students(college_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_student_session ON attendance(student_id, session_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_check_in ON attendance(check_in);
-CREATE INDEX IF NOT EXISTS idx_sessions_date ON attendance_sessions(session_date);
-
--- ============================================================
--- منح الصلاحيات العامة وسياسات الأمان RLS المتوافقة مع تطبيق دوامي
--- ============================================================
--- 1. منح الصلاحيات لأدوار anon و authenticated و service_role لضمان عدم ظهور خطأ 42501
+-- 3. منح الصلاحيات العامة لكافة الأدوار لتمكين المزامنة دون مشاكل
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
@@ -183,29 +35,13 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
--- 2. سياسات RLS الشاملة لجميع الجداول بما فيها الطلاب والحضور
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+-- 4. إيقاف Row Level Security (RLS) للجدول الموحد لتفادي أخطاء 42501
+ALTER TABLE IF EXISTS public.dawami_records DISABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Public Full Access Profiles" ON public.profiles;
-CREATE POLICY "Public Full Access Profiles" ON public.profiles FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Students" ON public.students;
-CREATE POLICY "Public Full Access Students" ON public.students FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Attendance" ON public.attendance;
-CREATE POLICY "Public Full Access Attendance" ON public.attendance FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Sessions" ON public.attendance_sessions;
-CREATE POLICY "Public Full Access Sessions" ON public.attendance_sessions FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Audit" ON public.audit_logs;
-CREATE POLICY "Public Full Access Audit" ON public.audit_logs FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Settings" ON public.app_settings;
-CREATE POLICY "Public Full Access Settings" ON public.app_settings FOR ALL TO public USING (true) WITH CHECK (true);
-
+-- 5. فهارس سريعة للاستعلامات اليومية وعمليات المزامنة
+CREATE INDEX IF NOT EXISTS idx_dawami_records_type ON public.dawami_records(record_type);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_key ON public.dawami_records(record_key);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_student_number ON public.dawami_records(student_number);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_barcode_id ON public.dawami_records(barcode_id);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_date ON public.dawami_records(record_date);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_records(sync_status);

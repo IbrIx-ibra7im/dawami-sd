@@ -751,14 +751,14 @@ class HiveHelper {
         }
       }
 
-      // 2. Upload local students in Hive to Supabase (Two-way push - public.students schema)
+      // 2. Upload local students in Hive to Supabase (dawami_records single table)
       try {
         for (final key in _studentsBox.keys) {
           final sRaw = _studentsBox.get(key);
           if (sRaw != null) {
             final map = Map<String, dynamic>.from(sRaw);
             final student = Student.fromMap(map);
-            await client.from('students').upsert(student.toSupabaseMap(), onConflict: 'student_number');
+            await client.from('dawami_records').upsert(student.toDawamiRecord(), onConflict: 'record_type,record_key');
             syncedCount++;
           }
         }
@@ -766,32 +766,14 @@ class HiveHelper {
         if (kDebugMode) print('Push students to Supabase error: $e');
       }
 
-      // 3. Upload local attendance records in Hive to Supabase (Two-way push)
+      // 3. Upload local attendance records in Hive to Supabase (dawami_records single table)
       try {
         for (final key in _attendanceBox.keys) {
           final aRaw = _attendanceBox.get(key);
           if (aRaw != null) {
             final map = Map<String, dynamic>.from(aRaw);
-            final checkInStr = map['check_in']?.toString() ?? '';
-            final dateStr = checkInStr.length >= 10 ? checkInStr.substring(0, 10) : null;
-            final timeStr = checkInStr.length >= 16 ? checkInStr.substring(11, 16) : null;
-            await client.from('attendance').upsert({
-              'id': map['id'],
-              'student_id': map['student_id'],
-              'student_number': map['student_number'] ?? map['university_id'],
-              'university_id': map['university_id'] ?? map['student_number'],
-              'student_name': map['student_name'],
-              'session_id': map['session_id'] ?? 1,
-              'lecture_id': map['lecture_id'] ?? map['session_id'] ?? 1,
-              'check_in': map['check_in'],
-              'check_out': map['check_out'],
-              'attendance_date': map['attendance_date'] ?? dateStr,
-              'attendance_time': map['attendance_time'] ?? timeStr,
-              'method': map['method'] ?? 'qr',
-              'status': map['status'] ?? 'حاضر',
-              'sync_status': 'مزامنة',
-              'device_id': map['device_id'] ?? 'ZK-F18',
-            }, onConflict: 'id');
+            final record = AttendanceRecord.fromMap(map);
+            await client.from('dawami_records').upsert(record.toDawamiRecord(), onConflict: 'record_type,record_key');
             map['is_synced'] = 1;
             await _attendanceBox.put(key, map);
             syncedCount++;
@@ -801,12 +783,12 @@ class HiveHelper {
         if (kDebugMode) print('Push attendance to Supabase error: $e');
       }
 
-      // 4. Pull latest students from Supabase into Hive
+      // 4. Pull latest students from Supabase (dawami_records single table) into Hive
       try {
-        final remoteStudents = await client.from('students').select();
+        final remoteStudents = await client.from('dawami_records').select().eq('record_type', 'student');
         for (final r in remoteStudents) {
           final map = Map<String, dynamic>.from(r);
-          final student = Student.fromMap(map);
+          final student = Student.fromDawamiRecord(map);
           final uniId = student.universityId;
           if (uniId.isNotEmpty) {
             final existing = await getStudentByUniversityId(uniId);
@@ -819,15 +801,16 @@ class HiveHelper {
         if (kDebugMode) print('Pull remote students error: $e');
       }
 
-      // 5. Pull latest attendance records from Supabase into Hive
+      // 5. Pull latest attendance records from Supabase (dawami_records single table) into Hive
       try {
-        final remoteAttendance = await client.from('attendance').select();
+        final remoteAttendance = await client.from('dawami_records').select().eq('record_type', 'attendance');
         for (final r in remoteAttendance) {
           final map = Map<String, dynamic>.from(r);
-          final id = map['id']?.toString();
-          if (id != null && !_attendanceBox.containsKey(id)) {
-            map['is_synced'] = 1;
-            await _attendanceBox.put(id, map);
+          final record = AttendanceRecord.fromDawamiRecord(map);
+          if (record.id.isNotEmpty && !_attendanceBox.containsKey(record.id)) {
+            final aMap = record.toMap();
+            aMap['is_synced'] = 1;
+            await _attendanceBox.put(record.id, aMap);
           }
         }
       } catch (e) {

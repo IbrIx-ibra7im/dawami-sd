@@ -62,6 +62,39 @@ class AttendanceRecord {
     };
   }
 
+  /// Map مطابقة لجدول dawami_records الموحد في Supabase
+  Map<String, dynamic> toDawamiRecord() {
+    return {
+      'record_type': 'attendance',
+      'record_key': id,
+      'student_number': studentNumber,
+      'full_name': studentName ?? '',
+      'barcode_id': studentNumber,
+      'record_date': attendanceDate,
+      'record_time': attendanceTime,
+      'method': method,
+      'status': status,
+      'sync_status': 'مزامنة',
+      'data': toMap(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+  }
+
+  factory AttendanceRecord.fromDawamiRecord(Map<dynamic, dynamic> record) {
+    final data = record['data'] is Map ? Map<String, dynamic>.from(record['data'] as Map) : <String, dynamic>{};
+    data['id'] = record['record_key'] ?? record['id']?.toString() ?? data['id'];
+    data['student_number'] = record['student_number'] ?? data['student_number'];
+    data['university_id'] = record['student_number'] ?? data['university_id'] ?? data['student_number'];
+    data['student_name'] = record['full_name'] ?? data['student_name'];
+    data['attendance_date'] = record['record_date']?.toString() ?? data['attendance_date'];
+    data['attendance_time'] = record['record_time']?.toString() ?? data['attendance_time'];
+    data['method'] = record['method'] ?? data['method'];
+    data['status'] = record['status'] ?? data['status'];
+    data['sync_status'] = record['sync_status'] ?? 'مزامنة';
+    data['is_synced'] = 1;
+    return AttendanceRecord.fromMap(data);
+  }
+
   factory AttendanceRecord.fromMap(Map<String, dynamic> map) {
     return AttendanceRecord(
       id: map['id']?.toString() ?? '',

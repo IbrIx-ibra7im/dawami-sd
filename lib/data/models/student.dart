@@ -109,20 +109,63 @@ class Student {
     };
   }
 
-  /// Map مطابقة حصرياً لأعمدة جدول Supabase المعتمد: public.students فقط
-  Map<String, dynamic> toSupabaseMap() {
+  /// Map مطابقة لجدول dawami_records الموحد في Supabase
+  Map<String, dynamic> toDawamiRecord() {
+    final sNum = studentNumber.isNotEmpty ? studentNumber : universityId;
     return {
-      'student_number': universityId,
+      'record_type': 'student',
+      'record_key': sNum,
+      'student_number': sNum,
       'full_name': fullName,
-      'college': collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية',
-      'department': departmentName ?? 'علوم الحاسوب',
-      'academic_level': levelName ?? 'المستوى الأول',
-      'phone': phone.trim().isNotEmpty ? phone.trim() : '0000000000',
+      'barcode_id': barcodeId,
       'status': status,
-      'university_id': universityId,
-      'barcode_id': qrCode,
-      'fingerprint_registered': hasFingerprint,
+      'sync_status': 'مزامنة',
+      'data': {
+        'id': id,
+        'uuid': uuid,
+        'student_number': sNum,
+        'university_id': universityId,
+        'full_name': fullName,
+        'college': college,
+        'department': department,
+        'academic_level': academicLevel,
+        'college_name': collegeName,
+        'department_name': departmentName,
+        'level_name': levelName,
+        'college_id': collegeId,
+        'department_id': departmentId,
+        'level_id': levelId,
+        'semester_id': semesterId,
+        'phone': phone,
+        'email': email,
+        'barcode_id': barcodeId,
+        'qr_code': qrCode,
+        'fingerprint_id': fingerprintId,
+        'fingerprint_registered': hasFingerprint,
+        'fingerprint_status': fingerprintStatus,
+        'fingerprint_quality': fingerprintQuality,
+        'fingerprint_enrolled_at': fingerprintEnrolledAt,
+        'photo_url': photoUrl,
+        'status': status,
+      },
+      'updated_at': DateTime.now().toIso8601String(),
     };
+  }
+
+  /// Alias for backward compatibility
+  Map<String, dynamic> toSupabaseMap() => toDawamiRecord();
+
+  factory Student.fromDawamiRecord(Map<dynamic, dynamic> record) {
+    final data = record['data'] is Map ? Map<String, dynamic>.from(record['data'] as Map) : <String, dynamic>{};
+    data['student_number'] = record['student_number'] ?? data['student_number'];
+    data['university_id'] = record['student_number'] ?? data['university_id'] ?? record['record_key'];
+    data['full_name'] = record['full_name'] ?? data['full_name'];
+    data['barcode_id'] = record['barcode_id'] ?? data['barcode_id'];
+    data['status'] = record['status'] ?? data['status'];
+    if (record['id'] != null) {
+      data['uuid'] = record['id'].toString();
+    }
+    return Student.fromMap(data);
   }
 
   factory Student.fromMap(Map<dynamic, dynamic> map) {

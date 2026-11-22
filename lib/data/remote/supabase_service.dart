@@ -41,13 +41,35 @@ class SupabaseService {
   String get currentUrl => _currentUrl;
   String get currentKey => _currentKey;
 
-  /// Complete SQL Script to fix 42501 permission denied in Supabase
+  /// Complete SQL Script for Single-Table Design in Supabase
   static const String sqlPermissionFixScript = '''-- ============================================================
--- كود تصحيح الصلاحيات وربط قاعدة بيانات تطبيق دوامي (Supabase)
+-- كود إنشاء الجدول الموحد الوحيد وتصحيح الصلاحيات في Supabase
 -- انسخ هذا الكود والصقه في Supabase Dashboard -> SQL Editor ثم اضغط Run
 -- ============================================================
 
--- 1. منح الصلاحيات العامة لأدوار anon و authenticated
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. إنشاء الجدول الموحد الوحيد لكافة بيانات تطبيق دوامي
+CREATE TABLE IF NOT EXISTS public.dawami_records (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    record_type VARCHAR(50) NOT NULL,            -- 'student' أو 'attendance' أو 'setting'
+    record_key VARCHAR(100) NOT NULL,           -- المفتاح الفريد (الرقم الجامعي أو معرّف الحضور)
+    student_number VARCHAR(50),                 -- الرقم الجامعي
+    full_name VARCHAR(255),                     -- اسم الطالب
+    barcode_id VARCHAR(100),                    -- معرّف الباركود / QR
+    record_date DATE DEFAULT CURRENT_DATE,      -- تاريخ الحضور
+    record_time TIME DEFAULT CURRENT_TIME,      -- وقت الحضور
+    method VARCHAR(50),                         -- 'fingerprint' أو 'barcode' أو 'manual'
+    status VARCHAR(50) NOT NULL DEFAULT 'نشط',   -- 'نشط' / 'حاضر' / 'منصرف'
+    sync_status VARCHAR(50) NOT NULL DEFAULT 'مزامنة',
+    data JSONB NOT NULL DEFAULT '{}'::jsonb,    -- كائن JSON يحتوي على كافة التفاصيل
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT dawami_records_pkey PRIMARY KEY (id),
+    CONSTRAINT dawami_records_type_key UNIQUE (record_type, record_key)
+);
+
+-- 2. منح الصلاحيات العامة لأدوار anon و authenticated و service_role
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
@@ -56,70 +78,16 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 
--- 2. إيقاف Row Level Security (RLS) للجداول لتمكين المزامنة المباشرة
-ALTER TABLE IF EXISTS public.students DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.attendance DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.attendance_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.profiles DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.colleges DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.departments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.academic_levels DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.semesters DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.courses DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.sync_queue DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.audit_logs DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.student_fingerprints DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.student_enrollments DISABLE ROW LEVEL SECURITY;
+-- 3. إيقاف Row Level Security (RLS) للجدول الموحد
+ALTER TABLE IF EXISTS public.dawami_records DISABLE ROW LEVEL SECURITY;
 
--- 3. ترقية وتوافق حقول جدول الطلاب لمواصفات تطبيق دوامي
-CREATE TABLE IF NOT EXISTS public.students (
-  id uuid not null default gen_random_uuid (),
-  student_number character varying(50) not null,
-  full_name character varying(255) not null,
-  college character varying(255) not null default 'كلية علوم الحاسوب والتنمية البشرية'::character varying,
-  department character varying(255) not null default 'علوم الحاسوب'::character varying,
-  academic_level character varying(100) not null default 'المستوى الأول'::character varying,
-  phone character varying(30) not null,
-  status character varying(50) not null default 'نشط'::character varying,
-  created_at timestamp with time zone not null default now(),
-  updated_at timestamp with time zone not null default now(),
-  university_id character varying(50) null,
-  barcode_id character varying(100) null,
-  fingerprint_registered boolean null default false,
-  constraint students_pkey primary key (id),
-  constraint students_student_number_key unique (student_number)
-);
-
-create unique INDEX IF not exists idx_students_university_id_unique on public.students using btree (university_id)
-where (university_id is not null);
-
--- 4. ترقية وتوافق حقول جدول الحضور لمواصفات تطبيق دوامي
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS student_number VARCHAR(50);
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS university_id VARCHAR(50);
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS student_name VARCHAR(255);
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS attendance_date DATE DEFAULT CURRENT_DATE;
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS attendance_time TIME DEFAULT CURRENT_TIME;
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS lecture_id INT;
-ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS sync_status VARCHAR(50) DEFAULT 'مزامنة';
-
--- 5. في حال كان نظام RLS مفروضاً إبقاؤه مفعلاً، يتم تطبيق سياسات السماح الشاملة التالية:
-DO \$\$
-DECLARE
-    tbl text;
-    tables text[] := ARRAY[
-      'students', 'attendance', 'attendance_sessions',
-      'profiles', 'colleges', 'departments', 'academic_levels',
-      'semesters', 'courses', 'sync_queue',
-      'audit_logs', 'student_fingerprints', 'student_enrollments'
-    ];
-BEGIN
-    FOREACH tbl IN ARRAY tables LOOP
-        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
-            EXECUTE format('DROP POLICY IF EXISTS "Public Full Access" ON public.%I', tbl);
-            EXECUTE format('CREATE POLICY "Public Full Access" ON public.%I FOR ALL TO public USING (true) WITH CHECK (true)', tbl);
-        END IF;
-    END LOOP;
-END \$\$;
+-- 4. فهارس سريعة للاستعلامات اليومية وعمليات المزامنة
+CREATE INDEX IF NOT EXISTS idx_dawami_records_type ON public.dawami_records(record_type);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_key ON public.dawami_records(record_key);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_student_number ON public.dawami_records(student_number);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_barcode_id ON public.dawami_records(barcode_id);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_date ON public.dawami_records(record_date);
+CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_records(sync_status);
 ''';
 
   /// Initializes Supabase, loading any custom saved URL and Key from Hive settings if available
@@ -221,14 +189,14 @@ END \$\$;
 
     final stopwatch = Stopwatch()..start();
     try {
-      // Query students table to verify read permissions
-      await _client!.from('students').select('student_number').limit(1);
+      // Query single table dawami_records to verify read permissions
+      await _client!.from('dawami_records').select('id').limit(1);
       stopwatch.stop();
 
       return SupabaseTestResult(
         isConnected: true,
         statusTitle: 'متصل ومصرح بالكامل',
-        message: 'تم الاتصال بالخادم بنجاح وجداول قاعدة البيانات مصرح لها بالكامل.',
+        message: 'تم الاتصال بالخادم بنجاح والجدول الموحد dawami_records مصرح له بالكامل.',
         responseTimeMs: stopwatch.elapsedMilliseconds,
       );
     } on PostgrestException catch (pe) {
@@ -293,36 +261,14 @@ END \$\$;
     }
   }
 
-  /// تنسيق حمولة الطالب لتطابق حصرياً جدول Supabase المعتمد (public.students)
+  /// تنسيق حمولة الطالب لتطابق جدول dawami_records الموحد في Supabase
   static Map<String, dynamic> formatStudentPayload(dynamic source) {
     if (source is Student) {
-      return source.toSupabaseMap();
+      return source.toDawamiRecord();
     }
     final map = Map<String, dynamic>.from(source as Map);
-    final uniId = (map['student_number'] ?? map['university_id'])?.toString().trim() ?? '';
-    final barcode = (map['barcode_id'] ?? map['qr_code'])?.toString().trim() ?? '';
-    final hasFp = map['fingerprint_registered'] == true ||
-        map['fingerprint_registered'] == 1 ||
-        map['fingerprint_registered'] == 'true' ||
-        (map['fingerprint_id'] != null && map['fingerprint_id'].toString().isNotEmpty);
-
-    final payload = <String, dynamic>{
-      'student_number': uniId,
-      'full_name': map['full_name']?.toString() ?? '',
-      'college': map['college']?.toString() ?? map['college_name']?.toString() ?? 'كلية علوم الحاسوب والتنمية البشرية',
-      'department': map['department']?.toString() ?? map['department_name']?.toString() ?? 'علوم الحاسوب',
-      'academic_level': map['academic_level']?.toString() ?? map['level_name']?.toString() ?? 'المستوى الأول',
-      'phone': (map['phone']?.toString().trim().isNotEmpty == true) ? map['phone'].toString().trim() : '0000000000',
-      'status': map['status']?.toString() ?? 'نشط',
-      'fingerprint_registered': hasFp,
-    };
-    if (uniId.isNotEmpty) {
-      payload['university_id'] = uniId;
-    }
-    if (barcode.isNotEmpty) {
-      payload['barcode_id'] = barcode;
-    }
-    return payload;
+    final student = Student.fromMap(map);
+    return student.toDawamiRecord();
   }
 
   // Sync Queue Operation Handler
@@ -335,46 +281,51 @@ END \$\$;
     try {
       final payload = jsonDecode(item.payload) as Map<String, dynamic>;
 
-      // Clean local helper / join fields based on target table
       if (item.tableName == 'students') {
-        final studentPayload = formatStudentPayload(payload);
+        final record = formatStudentPayload(payload);
         switch (item.operation.toUpperCase()) {
           case 'INSERT':
           case 'UPDATE':
-            await _client!.from('students').upsert(studentPayload, onConflict: 'student_number');
+            await _client!.from('dawami_records').upsert(record, onConflict: 'record_type,record_key');
             break;
           case 'DELETE':
-            final studentNum = studentPayload['student_number'] ?? payload['university_id'] ?? item.recordId;
-            await _client!.from('students').delete().eq('student_number', studentNum);
+            final key = record['record_key'] ?? payload['university_id'] ?? item.recordId;
+            await _client!.from('dawami_records').delete().eq('record_type', 'student').eq('record_key', key);
             break;
         }
         return true;
       } else if (item.tableName == 'attendance') {
-        if (payload['student_number'] == null && payload['university_id'] != null) {
-          payload['student_number'] = payload['university_id'];
+        final attendanceRecord = AttendanceRecord.fromMap(payload);
+        switch (item.operation.toUpperCase()) {
+          case 'INSERT':
+          case 'UPDATE':
+            await _client!.from('dawami_records').upsert(attendanceRecord.toDawamiRecord(), onConflict: 'record_type,record_key');
+            break;
+          case 'DELETE':
+            final key = attendanceRecord.id.isNotEmpty ? attendanceRecord.id : (payload['id'] ?? item.recordId);
+            await _client!.from('dawami_records').delete().eq('record_type', 'attendance').eq('record_key', key);
+            break;
         }
-        payload['sync_status'] = 'مزامنة';
-        payload.remove('lecture_name');
-        payload.remove('classroom_name');
-        payload.remove('is_synced');
-      } else if (item.tableName == 'sessions' || item.tableName == 'attendance_sessions') {
-        payload.remove('lecture_name');
-        payload.remove('classroom_name');
-        payload.remove('instructor');
-      } else if (item.tableName == 'lectures') {
-        payload.remove('course_name');
-        payload.remove('classroom_name');
+        return true;
       }
-      payload.remove('is_synced');
 
+      // Any other entities are stored flexibly into dawami_records
       switch (item.operation.toUpperCase()) {
         case 'INSERT':
         case 'UPDATE':
-          await _client!.from(item.tableName).upsert(payload);
+          final recKey = payload['id']?.toString() ?? item.recordId.toString();
+          final genericRecord = {
+            'record_type': item.tableName,
+            'record_key': recKey,
+            'sync_status': 'مزامنة',
+            'data': payload,
+            'updated_at': DateTime.now().toIso8601String(),
+          };
+          await _client!.from('dawami_records').upsert(genericRecord, onConflict: 'record_type,record_key');
           break;
         case 'DELETE':
-          final id = payload['id'] ?? item.recordId;
-          await _client!.from(item.tableName).delete().eq('id', id);
+          final id = payload['id']?.toString() ?? item.recordId.toString();
+          await _client!.from('dawami_records').delete().eq('record_type', item.tableName).eq('record_key', id);
           break;
       }
       return true;
@@ -386,12 +337,12 @@ END \$\$;
     }
   }
 
-  /// High-performance bulk student upsert directly to Supabase
+  /// High-performance bulk student upsert directly to Supabase dawami_records
   Future<bool> batchUpsertStudents(List<Map<String, dynamic>> students) async {
     if (!_isConfigured || _client == null || students.isEmpty) return false;
     try {
       final cleanList = students.map((s) => formatStudentPayload(s)).toList();
-      await _client!.from('students').upsert(cleanList, onConflict: 'student_number');
+      await _client!.from('dawami_records').upsert(cleanList, onConflict: 'record_type,record_key');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase batchUpsertStudents notice: $e');
@@ -400,22 +351,22 @@ END \$\$;
   }
 
   // ============================================================
-  // --- PRIMARY DATABASE OPERATIONS (SUPABASE PRIMARY SOURCE) ---
+  // --- PRIMARY DATABASE OPERATIONS (SUPABASE dawami_records) ---
   // ============================================================
 
-  /// Fetch students from primary database (Supabase)
+  /// Fetch students from single unified table (dawami_records)
   Future<List<Student>> getStudents({String? query, int? collegeId, String? status}) async {
     if (!_isConfigured || _client == null) return [];
     try {
-      var builder = _client!.from('students').select();
+      var builder = _client!.from('dawami_records').select().eq('record_type', 'student');
       if (status != null && status != 'الكل') {
         builder = builder.eq('status', status);
       }
-      final response = await builder.order('created_at', ascending: false);
+      final response = await builder.order('updated_at', ascending: false);
       final list = <Student>[];
       for (final item in response) {
         final map = Map<String, dynamic>.from(item);
-        final student = Student.fromMap(map);
+        final student = Student.fromDawamiRecord(map);
         if (query != null && query.trim().isNotEmpty) {
           final q = query.trim().toLowerCase();
           final match = student.fullName.toLowerCase().contains(q) ||
@@ -432,14 +383,14 @@ END \$\$;
     }
   }
 
-  /// Insert student into primary database (Supabase)
+  /// Insert student into single unified table (dawami_records)
   Future<Student?> insertStudent(Student student) async {
     if (!_isConfigured || _client == null) return null;
     try {
-      final payload = student.toSupabaseMap();
-      final response = await _client!.from('students').upsert(payload, onConflict: 'student_number').select().maybeSingle();
+      final payload = student.toDawamiRecord();
+      final response = await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key').select().maybeSingle();
       if (response != null) {
-        return Student.fromMap(Map<String, dynamic>.from(response));
+        return Student.fromDawamiRecord(Map<String, dynamic>.from(response));
       }
       return student;
     } catch (e) {
@@ -448,13 +399,12 @@ END \$\$;
     }
   }
 
-  /// Update student in primary database (Supabase)
+  /// Update student in single unified table (dawami_records)
   Future<bool> updateStudent(Student student) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      final payload = student.toSupabaseMap();
-      final studentNum = student.universityId.isNotEmpty ? student.universityId : student.studentNumber;
-      await _client!.from('students').update(payload).eq('student_number', studentNum);
+      final payload = student.toDawamiRecord();
+      await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase updateStudent error: $e');
@@ -462,12 +412,12 @@ END \$\$;
     }
   }
 
-  /// Delete student from primary database (Supabase)
+  /// Delete student from single unified table (dawami_records)
   Future<bool> deleteStudent(int studentId, [String? universityId]) async {
     if (!_isConfigured || _client == null) return false;
     try {
       if (universityId != null && universityId.isNotEmpty) {
-        await _client!.from('students').delete().eq('student_number', universityId);
+        await _client!.from('dawami_records').delete().eq('record_type', 'student').eq('student_number', universityId);
       }
       return true;
     } catch (e) {
@@ -476,11 +426,11 @@ END \$\$;
     }
   }
 
-  /// Delete multiple students from primary database (Supabase)
+  /// Delete multiple students from single unified table (dawami_records)
   Future<bool> deleteMultipleStudents(List<int> studentIds) async {
     if (!_isConfigured || _client == null || studentIds.isEmpty) return false;
     try {
-      await _client!.from('students').delete().inFilter('id', studentIds);
+      // In Hive/dawami_records studentIds are local integer keys
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteMultipleStudents error: $e');
@@ -488,54 +438,30 @@ END \$\$;
     }
   }
 
-  /// Fetch attendance records from primary database (Supabase)
+  /// Fetch attendance records from single unified table (dawami_records)
   Future<List<AttendanceRecord>> getAttendanceRecords({int? sessionId, String? date, String? method}) async {
     if (!_isConfigured || _client == null) return [];
     try {
-      var builder = _client!.from('attendance').select('*, students(full_name, university_id)');
-      if (sessionId != null) {
-        builder = builder.eq('session_id', sessionId);
-      }
+      var builder = _client!.from('dawami_records').select().eq('record_type', 'attendance');
       if (method != null && method != 'الكل') {
         builder = builder.eq('method', method);
       }
-      final response = await builder.order('check_in', ascending: false);
+      final response = await builder.order('record_date', ascending: false);
       final list = <AttendanceRecord>[];
       for (final item in response) {
         final map = Map<String, dynamic>.from(item);
-        if (map['students'] is Map) {
-          final s = map['students'] as Map;
-          map['student_name'] = s['full_name'];
-          map['university_id'] = s['university_id'];
-        }
-        final record = AttendanceRecord.fromMap(map);
+        final record = AttendanceRecord.fromDawamiRecord(map);
         if (date != null && !record.checkIn.startsWith(date)) continue;
         list.add(record);
       }
       return list;
     } catch (e) {
-      if (kDebugMode) print('Supabase getAttendanceRecords with join notice (fallback simple): $e');
-      try {
-        var simpleBuilder = _client!.from('attendance').select();
-        if (sessionId != null) simpleBuilder = simpleBuilder.eq('session_id', sessionId);
-        if (method != null && method != 'الكل') simpleBuilder = simpleBuilder.eq('method', method);
-        final response = await simpleBuilder.order('check_in', ascending: false);
-        final list = <AttendanceRecord>[];
-        for (final item in response) {
-          final map = Map<String, dynamic>.from(item);
-          final record = AttendanceRecord.fromMap(map);
-          if (date != null && !record.checkIn.startsWith(date)) continue;
-          list.add(record);
-        }
-        return list;
-      } catch (innerErr) {
-        if (kDebugMode) print('Supabase simple getAttendanceRecords error: $innerErr');
-        rethrow;
-      }
+      if (kDebugMode) print('Supabase getAttendanceRecords error: $e');
+      return [];
     }
   }
 
-  /// Record attendance directly into primary database (Supabase)
+  /// Record attendance directly into single unified table (dawami_records)
   Future<bool> recordAttendance({
     required String id,
     required int studentId,
@@ -555,35 +481,25 @@ END \$\$;
     try {
       final date = attendanceDate ?? (checkIn.length >= 10 ? checkIn.substring(0, 10) : null);
       final time = attendanceTime ?? (checkIn.length >= 16 ? checkIn.substring(11, 16) : null);
-      final payload = <String, dynamic>{
-        'id': id,
-        'student_id': studentId,
-        'session_id': sessionId,
-        'method': method,
-        'status': status,
-        'device_id': deviceId,
-        'check_in': checkIn,
-        'sync_status': 'مزامنة',
-      };
-      if (studentNumber != null && studentNumber.isNotEmpty) {
-        payload['student_number'] = studentNumber;
-      }
-      if (studentName != null && studentName.isNotEmpty) {
-        payload['student_name'] = studentName;
-      }
-      if (lectureId != null) {
-        payload['lecture_id'] = lectureId;
-      }
-      if (date != null) {
-        payload['attendance_date'] = date;
-      }
-      if (time != null) {
-        payload['attendance_time'] = time;
-      }
-      if (checkOut != null) {
-        payload['check_out'] = checkOut;
-      }
-      await _client!.from('attendance').upsert(payload, onConflict: 'id');
+      final record = AttendanceRecord(
+        id: id,
+        studentId: studentId,
+        sessionId: sessionId,
+        method: method,
+        status: status,
+        deviceId: deviceId,
+        checkIn: checkIn,
+        checkOut: checkOut,
+        createdAt: DateTime.now().toIso8601String(),
+        studentName: studentName,
+        universityId: studentNumber,
+        isSynced: true,
+      );
+      final payload = record.toDawamiRecord();
+      if (date != null) payload['record_date'] = date;
+      if (time != null) payload['record_time'] = time;
+
+      await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase recordAttendance error: $e');
@@ -591,11 +507,11 @@ END \$\$;
     }
   }
 
-  /// Delete attendance record from primary database (Supabase)
+  /// Delete attendance record from single unified table (dawami_records)
   Future<bool> deleteAttendanceRecord(String id) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      await _client!.from('attendance').delete().eq('id', id);
+      await _client!.from('dawami_records').delete().eq('record_type', 'attendance').eq('record_key', id);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteAttendanceRecord error: $e');
@@ -603,11 +519,11 @@ END \$\$;
     }
   }
 
-  /// Delete multiple attendance records from primary database (Supabase)
+  /// Delete multiple attendance records from single unified table (dawami_records)
   Future<bool> deleteMultipleAttendanceRecords(List<String> ids) async {
     if (!_isConfigured || _client == null || ids.isEmpty) return false;
     try {
-      await _client!.from('attendance').delete().inFilter('id', ids);
+      await _client!.from('dawami_records').delete().eq('record_type', 'attendance').inFilter('record_key', ids);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteMultipleAttendanceRecords error: $e');

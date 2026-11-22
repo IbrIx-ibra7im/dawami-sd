@@ -25,9 +25,8 @@ void main() {
       final sql = SupabaseService.sqlPermissionFixScript;
       expect(sql, contains('GRANT USAGE ON SCHEMA public TO anon'));
       expect(sql, contains('GRANT ALL ON ALL TABLES IN SCHEMA public'));
-      expect(sql, contains('ALTER TABLE IF EXISTS public.students DISABLE ROW LEVEL SECURITY'));
-      expect(sql, contains('ALTER TABLE IF EXISTS public.attendance DISABLE ROW LEVEL SECURITY'));
-      expect(sql, contains('ALTER TABLE IF EXISTS public.profiles DISABLE ROW LEVEL SECURITY'));
+      expect(sql, contains('ALTER TABLE IF EXISTS public.dawami_records DISABLE ROW LEVEL SECURITY'));
+      expect(sql, contains('CREATE TABLE IF NOT EXISTS public.dawami_records'));
     });
 
     test('SupabaseTestResult correctly holds permission error properties', () {

@@ -198,8 +198,8 @@ void main() {
     });
   });
 
-  group('5. توافق نموذج Student بدقة مع جدول public.students في Supabase', () {
-    test('toSupabaseMap يصدر حصرياً الأعمدة المعتمدة في جدول public.students', () {
+  group('5. توافق نموذج Student و Attendance مع جدول dawami_records الموحد', () {
+    test('Student.toDawamiRecord يصدر بنية السجل الموحد بدقة', () {
       final student = Student(
         id: 10,
         uuid: '550e8400-e29b-41d4-a716-446655440000',
@@ -218,62 +218,70 @@ void main() {
         fingerprintId: 'FP-9988',
       );
 
-      final map = student.toSupabaseMap();
+      final record = student.toDawamiRecord();
 
-      // التحقق من الحقول المسموح بها في جدول public.students فقط
-      final allowedKeys = {
-        'student_number',
-        'full_name',
-        'college',
-        'department',
-        'academic_level',
-        'phone',
-        'status',
-        'university_id',
-        'barcode_id',
-        'fingerprint_registered',
-      };
-
-      expect(map.keys.toSet().difference(allowedKeys), isEmpty,
-          reason: 'يجب ألا يحتوي map على أي حقل غير موجود في جدول public.students');
-
-      expect(map['student_number'], '2026-SUPA-001');
-      expect(map['full_name'], 'عمر مصطفى حسن');
-      expect(map['college'], 'كلية علوم الحاسوب والتنمية البشرية');
-      expect(map['department'], 'تقنية المعلومات');
-      expect(map['academic_level'], 'المستوى الأول');
-      expect(map['phone'], '0912345678');
-      expect(map['status'], 'نشط');
-      expect(map['barcode_id'], 'DAWAMI:STUDENT:2026-SUPA-001');
-      expect(map['fingerprint_registered'], isTrue);
-
-      // التأكد الصارم من عدم وجود أعمدة تسبب أخطاء Postgres
-      expect(map.containsKey('college_id'), isFalse);
-      expect(map.containsKey('department_id'), isFalse);
-      expect(map.containsKey('level_id'), isFalse);
-      expect(map.containsKey('semester_id'), isFalse);
-      expect(map.containsKey('email'), isFalse);
-      expect(map.containsKey('qr_code'), isFalse);
-      expect(map.containsKey('fingerprint_id'), isFalse);
-      expect(map.containsKey('photo_url'), isFalse);
+      expect(record['record_type'], 'student');
+      expect(record['record_key'], '2026-SUPA-001');
+      expect(record['student_number'], '2026-SUPA-001');
+      expect(record['full_name'], 'عمر مصطفى حسن');
+      expect(record['barcode_id'], 'DAWAMI:STUDENT:2026-SUPA-001');
+      expect(record['status'], 'نشط');
+      expect(record['sync_status'], 'مزامنة');
+      expect(record['data'], isA<Map>());
+      final data = record['data'] as Map;
+      expect(data['phone'], '0912345678');
+      expect(data['college'], 'كلية علوم الحاسوب والتنمية البشرية');
+      expect(data['fingerprint_registered'], isTrue);
     });
 
-    test('Student.fromMap يقرأ سجل Supabase مع UUID بمرونة', () {
+    test('AttendanceRecord.toDawamiRecord يصدر بنية سجل الحضور الموحد', () {
+      final attendance = AttendanceRecord(
+        id: 'att-uuid-112233',
+        studentId: 10,
+        sessionId: 1,
+        universityId: '2026-SUPA-001',
+        studentName: 'عمر مصطفى حسن',
+        checkIn: '2026-11-22T09:15:00',
+        method: 'fingerprint',
+        status: 'حاضر',
+        deviceId: 'ZK-F18',
+        createdAt: '2026-11-22T09:15:00',
+        isSynced: true,
+      );
+
+      final record = attendance.toDawamiRecord();
+
+      expect(record['record_type'], 'attendance');
+      expect(record['record_key'], 'att-uuid-112233');
+      expect(record['student_number'], '2026-SUPA-001');
+      expect(record['full_name'], 'عمر مصطفى حسن');
+      expect(record['record_date'], '2026-11-22');
+      expect(record['record_time'], '09:15');
+      expect(record['method'], 'fingerprint');
+      expect(record['status'], 'حاضر');
+      expect(record['sync_status'], 'مزامنة');
+      expect(record['data'], isA<Map>());
+    });
+
+    test('Student.fromDawamiRecord يقرأ سجل dawami_records بمرونة', () {
       final remoteRow = {
         'id': 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'record_type': 'student',
+        'record_key': '2026-9999',
         'student_number': '2026-9999',
         'full_name': 'فاطمة الزهراء',
-        'college': 'كلية علوم الحاسوب والتنمية البشرية',
-        'department': 'علوم الحاسوب',
-        'academic_level': 'المستوى الأول',
-        'phone': '0922334455',
-        'status': 'نشط',
-        'university_id': '2026-9999',
         'barcode_id': 'BARCODE-9999',
-        'fingerprint_registered': false,
+        'status': 'نشط',
+        'data': {
+          'phone': '0922334455',
+          'college': 'كلية علوم الحاسوب والتنمية البشرية',
+          'department': 'علوم الحاسوب',
+          'academic_level': 'المستوى الأول',
+          'fingerprint_registered': false,
+        },
       };
 
-      final student = Student.fromMap(remoteRow);
+      final student = Student.fromDawamiRecord(remoteRow);
       expect(student.uuid, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
       expect(student.studentNumber, '2026-9999');
       expect(student.universityId, '2026-9999');
@@ -281,6 +289,35 @@ void main() {
       expect(student.phone, '0922334455');
       expect(student.barcodeId, 'BARCODE-9999');
       expect(student.fingerprintRegistered, isFalse);
+    });
+
+    test('AttendanceRecord.fromDawamiRecord يقرأ سجل الحضور بمرونة', () {
+      final remoteRow = {
+        'id': 'att-uuid-999',
+        'record_type': 'attendance',
+        'record_key': 'att-uuid-999',
+        'student_number': '2026-9999',
+        'full_name': 'فاطمة الزهراء',
+        'record_date': '2026-11-22',
+        'record_time': '10:00',
+        'method': 'barcode',
+        'status': 'حاضر',
+        'sync_status': 'مزامنة',
+        'data': {
+          'check_in': '2026-11-22T10:00:00',
+          'device_id': 'ZK-F18',
+        },
+      };
+
+      final record = AttendanceRecord.fromDawamiRecord(remoteRow);
+      expect(record.id, 'att-uuid-999');
+      expect(record.studentNumber, '2026-9999');
+      expect(record.studentName, 'فاطمة الزهراء');
+      expect(record.attendanceDate, '2026-11-22');
+      expect(record.attendanceTime, '10:00');
+      expect(record.method, 'barcode');
+      expect(record.status, 'حاضر');
+      expect(record.isSynced, isTrue);
     });
   });
 }

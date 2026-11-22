@@ -143,29 +143,11 @@ class SyncService extends ChangeNotifier {
         return false;
       }
 
-      // 3. رفع سجلات الحضور غير المزامنة من Hive إلى Supabase
+      // 3. رفع سجلات الحضور غير المزامنة من Hive إلى Supabase (جدول dawami_records الموحد)
       final pendingAttendance = await _localStorage.getPendingAttendanceRecords();
       for (final record in pendingAttendance) {
         try {
-          final payload = {
-            'id': record.id,
-            'student_id': record.studentId,
-            'student_number': record.studentNumber,
-            'university_id': record.universityId ?? record.studentNumber,
-            'student_name': record.studentName ?? '',
-            'session_id': record.sessionId,
-            'lecture_id': record.sessionId,
-            'check_in': record.checkIn,
-            'check_out': record.checkOut,
-            'attendance_date': record.attendanceDate,
-            'attendance_time': record.attendanceTime,
-            'method': record.method,
-            'status': record.status,
-            'device_id': record.deviceId,
-            'sync_status': 'مزامنة',
-          };
-
-          await client.from('attendance').upsert(payload, onConflict: 'id');
+          await client.from('dawami_records').upsert(record.toDawamiRecord(), onConflict: 'record_type,record_key');
           // تم الرفع بنجاح -> تعليم السجل كـ مزامن في Hive
           await _localStorage.markAttendanceSynced(record.id);
         } catch (e) {
@@ -173,12 +155,12 @@ class SyncService extends ChangeNotifier {
         }
       }
 
-      // 4. مزامنة الطلاب المسجلين محلياً إلى Supabase (مطابقة دقيقة لمخطط public.students)
+      // 4. مزامنة الطلاب المسجلين محلياً إلى Supabase (جدول dawami_records الموحد)
       try {
         final localStudents = await _localStorage.getStudents();
         for (final s in localStudents) {
           try {
-            await client.from('students').upsert(s.toSupabaseMap(), onConflict: 'student_number');
+            await client.from('dawami_records').upsert(s.toDawamiRecord(), onConflict: 'record_type,record_key');
           } catch (e) {
             if (kDebugMode) print('خطأ مزامنة الطالب (${s.universityId}): $e');
           }
