@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
@@ -14,46 +15,66 @@ import 'data/repositories/app_repository.dart';
 import 'features/fingerprint/fingerprint_provider.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize SQLite for all platforms (Web, Windows, Linux, Mobile) safely
-  if (kIsWeb) {
+    // التقاط أي أخطاء من إطار عمل فلاتر وعرضها بلطف دون إيقاف التطبيق
+    FlutterError.onError = (FlutterErrorDetails details) {
+      if (kDebugMode) {
+        FlutterError.dumpErrorToConsole(details);
+      }
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      if (kDebugMode) {
+        print('Global asynchronous notice: $error');
+      }
+      return true;
+    };
+
+    // Initialize SQLite for all platforms (Web, Windows, Linux, Mobile) safely
+    if (kIsWeb) {
+      try {
+        databaseFactory = databaseFactoryFfiWeb;
+      } catch (_) {}
+    } else if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      try {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+      } catch (_) {}
+    }
+
+    // Initialize Hive local database safely
     try {
-      databaseFactory = databaseFactoryFfiWeb;
-    } catch (_) {}
-  } else if (defaultTargetPlatform == TargetPlatform.windows ||
-      defaultTargetPlatform == TargetPlatform.linux ||
-      defaultTargetPlatform == TargetPlatform.macOS) {
+      await HiveHelper.instance.init();
+    } catch (e) {
+      if (kDebugMode) print('Hive init notice: $e');
+    }
+
+    // Auto-connect to Supabase with hardcoded project keys safely
     try {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    } catch (_) {}
-  }
+      await SupabaseService.instance.initDefault();
+    } catch (e) {
+      if (kDebugMode) print('Supabase init notice: $e');
+    }
 
-  // Initialize Hive local database safely
-  try {
-    await HiveHelper.instance.init();
-  } catch (e) {
-    if (kDebugMode) print('Hive init notice: $e');
-  }
-
-  // Auto-connect to Supabase with hardcoded project keys safely
-  try {
-    await SupabaseService.instance.initDefault();
-  } catch (e) {
-    if (kDebugMode) print('Supabase init notice: $e');
-  }
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => AppRepository()),
-        ChangeNotifierProvider(create: (_) => SyncEngine()),
-        ChangeNotifierProvider(create: (_) => ConnectivityService()),
-        ChangeNotifierProvider(create: (_) => FingerprintProvider()),
-        ChangeNotifierProvider.value(value: SyncService.instance),
-      ],
-      child: const DawamiApp(),
-    ),
-  );
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AppRepository()),
+          ChangeNotifierProvider(create: (_) => SyncEngine()),
+          ChangeNotifierProvider(create: (_) => ConnectivityService()),
+          ChangeNotifierProvider(create: (_) => FingerprintProvider()),
+          ChangeNotifierProvider.value(value: SyncService.instance),
+        ],
+        child: const DawamiApp(),
+      ),
+    );
+  }, (error, stackTrace) {
+    if (kDebugMode) {
+      print('Zone error caught: $error');
+    }
+  });
 }
