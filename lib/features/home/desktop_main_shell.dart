@@ -13,7 +13,6 @@ import '../fingerprint/fingerprint_screen.dart';
 import '../attendance/attendance_list_screen.dart';
 import '../students/students_list_screen.dart';
 import '../students/student_credentials_screen.dart';
-import '../lectures/lectures_list_screen.dart';
 import '../reports/reports_screen.dart';
 import '../settings/settings_screen.dart';
 import '../authentication/login_screen.dart';
@@ -181,9 +180,8 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
                       _buildNavItem(4, 'سجل الحضور', Icons.list_alt_rounded),
                       _buildNavItem(5, 'إدارة الطلاب', Icons.people_alt_rounded),
                       _buildNavItem(6, 'بصمات وبطاقات الطلاب (QR)', Icons.badge_rounded),
-                      _buildNavItem(7, 'المحاضرات والقاعات', Icons.school_rounded),
-                      _buildNavItem(8, 'التقارير الرسمية والطباعة', Icons.picture_as_pdf_rounded),
-                      _buildNavItem(9, 'الإعدادات العامة', Icons.settings_rounded),
+                      _buildNavItem(7, 'التقارير الرسمية والطباعة', Icons.picture_as_pdf_rounded),
+                      _buildNavItem(8, 'الإعدادات العامة', Icons.settings_rounded),
                     ],
                   ),
                 ),
@@ -392,10 +390,8 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
       case 6:
         return const StudentCredentialsScreen();
       case 7:
-        return const LecturesListScreen();
-      case 8:
         return const ReportsScreen();
-      case 9:
+      case 8:
         return const SettingsScreen();
       default:
         return DesktopHomeContent(

@@ -76,18 +76,18 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
       body: Column(
         children: [
           const SyncStatusCard(compact: true),
-          // Current Lecture Info Banner
+          // Attendance Session Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             color: AppColors.primaryBlue.withAlpha(20),
             child: Row(
               children: [
-                const Icon(Icons.school, size: 20, color: AppColors.primaryBlue),
+                const Icon(Icons.event_available_rounded, size: 20, color: AppColors.primaryBlue),
                 const SizedBox(width: 10),
-                Expanded(
+                const Expanded(
                   child: Text(
-                    'محاضرة: ${repo.activeSession?.lectureName ?? 'برمجة 1'} — ${repo.activeSession?.classroomName ?? 'قاعة 3'}',
-                    style: const TextStyle(
+                    'جلسة الحضور المباشرة • تسجيل الحضور والانصراف للطلاب',
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                       color: AppColors.darkBlue,
@@ -101,7 +101,7 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
-                    'جارية',
+                    'نشطة',
                     style: TextStyle(
                       color: AppColors.success,
                       fontWeight: FontWeight.bold,

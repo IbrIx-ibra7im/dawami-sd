@@ -10,7 +10,6 @@ import '../students/students_list_screen.dart';
 import '../students/student_credentials_screen.dart';
 import '../students/import_students_dialog.dart';
 import '../attendance/attendance_list_screen.dart';
-import '../lectures/lectures_list_screen.dart';
 import '../reports/reports_screen.dart';
 import '../attendance/audit_logs_screen.dart';
 import '../authentication/login_screen.dart';
@@ -354,18 +353,6 @@ class DashboardScreen extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const AttendanceListScreen()),
-          );
-        },
-      ),
-      _ActionData(
-        title: 'المحاضرات والقاعات',
-        subtitle: 'الجداول والقاعات الدراسية',
-        icon: Icons.school_outlined,
-        color: Colors.amber.shade800,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const LecturesListScreen()),
           );
         },
       ),

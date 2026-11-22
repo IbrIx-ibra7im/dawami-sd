@@ -47,40 +47,16 @@ CREATE TABLE IF NOT EXISTS courses (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. جدول القاعات (classrooms)
-CREATE TABLE IF NOT EXISTS classrooms (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    capacity INT NOT NULL DEFAULT 50,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. جدول المحاضرات (lectures)
-CREATE TABLE IF NOT EXISTS lectures (
-    id SERIAL PRIMARY KEY,
-    course_id INT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    classroom_id INT NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
-    instructor VARCHAR(255) NOT NULL,
-    day VARCHAR(50) NOT NULL,
-    start_time TIME NOT NULL,
-    end_time TIME NOT NULL,
-    grace_minutes INT DEFAULT 15,
-    late_after TIME NOT NULL,
-    close_at TIME NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 8. جدول جلسات الحضور (attendance_sessions)
+-- 6. جدول جلسات الحضور (attendance_sessions)
 CREATE TABLE IF NOT EXISTS attendance_sessions (
     id SERIAL PRIMARY KEY,
-    lecture_id INT NOT NULL REFERENCES lectures(id) ON DELETE CASCADE,
-    session_date DATE NOT NULL,
+    name VARCHAR(150) NOT NULL DEFAULT 'جلسة الحضور اليومية',
+    session_date DATE NOT NULL DEFAULT CURRENT_DATE,
     status VARCHAR(50) NOT NULL DEFAULT 'نشطة',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. جدول الطلاب (students) بمواصفات تطبيق دوامي المحدثة
+-- 7. جدول الطلاب (students) بمواصفات تطبيق دوامي المحدثة
 CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     uuid UUID DEFAULT uuid_generate_v4() UNIQUE,
@@ -115,14 +91,13 @@ CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON students(barcode_id);
 CREATE INDEX IF NOT EXISTS idx_students_fingerprint_id ON students(fingerprint_id);
 CREATE INDEX IF NOT EXISTS idx_students_full_name ON students(full_name);
 
--- 10. جدول الحضور (attendance) - مع منع التكرار Idempotent ومطابقة مواصفات المزامنة
+-- 8. جدول الحضور (attendance) - مع منع التكرار Idempotent ومطابقة مواصفات المزامنة
 CREATE TABLE IF NOT EXISTS attendance (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_number VARCHAR(50),
     university_id VARCHAR(50), -- متوافق مع الحقل السابق
     student_name VARCHAR(255),
     student_id INT REFERENCES students(id) ON DELETE CASCADE,
-    lecture_id INT REFERENCES lectures(id) ON DELETE CASCADE,
     session_id INT REFERENCES attendance_sessions(id) ON DELETE CASCADE,
     attendance_date DATE DEFAULT CURRENT_DATE,
     attendance_time TIME DEFAULT CURRENT_TIME,
@@ -202,7 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_students_university_id ON students(university_id)
 CREATE INDEX IF NOT EXISTS idx_students_college_id ON students(college_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_student_session ON attendance(student_id, session_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_check_in ON attendance(check_in);
-CREATE INDEX IF NOT EXISTS idx_sessions_lecture_date ON attendance_sessions(lecture_id, session_date);
+CREATE INDEX IF NOT EXISTS idx_sessions_date ON attendance_sessions(session_date);
 
 -- ============================================================
 -- منح الصلاحيات العامة وسياسات الأمان RLS المتوافقة مع تطبيق دوامي
@@ -221,7 +196,6 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attendance_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.lectures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
@@ -236,9 +210,6 @@ CREATE POLICY "Public Full Access Attendance" ON public.attendance FOR ALL TO pu
 
 DROP POLICY IF EXISTS "Public Full Access Sessions" ON public.attendance_sessions;
 CREATE POLICY "Public Full Access Sessions" ON public.attendance_sessions FOR ALL TO public USING (true) WITH CHECK (true);
-
-DROP POLICY IF EXISTS "Public Full Access Lectures" ON public.lectures;
-CREATE POLICY "Public Full Access Lectures" ON public.lectures FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Public Full Access Audit" ON public.audit_logs;
 CREATE POLICY "Public Full Access Audit" ON public.audit_logs FOR ALL TO public USING (true) WITH CHECK (true);

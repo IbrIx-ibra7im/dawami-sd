@@ -60,14 +60,12 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authen
 ALTER TABLE IF EXISTS public.students DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.attendance DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.attendance_sessions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.lectures DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.colleges DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.departments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.academic_levels DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.semesters DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.courses DISABLE ROW LEVEL SECURITY;
-ALTER TABLE IF EXISTS public.classrooms DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.sync_queue DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.audit_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.student_fingerprints DISABLE ROW LEVEL SECURITY;
@@ -95,9 +93,9 @@ DO \$\$
 DECLARE
     tbl text;
     tables text[] := ARRAY[
-      'students', 'attendance', 'attendance_sessions', 'lectures',
+      'students', 'attendance', 'attendance_sessions',
       'profiles', 'colleges', 'departments', 'academic_levels',
-      'semesters', 'courses', 'classrooms', 'sync_queue',
+      'semesters', 'courses', 'sync_queue',
       'audit_logs', 'student_fingerprints', 'student_enrollments'
     ];
 BEGIN
