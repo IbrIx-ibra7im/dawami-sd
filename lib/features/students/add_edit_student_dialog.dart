@@ -63,6 +63,172 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
     super.dispose();
   }
 
+  /// فتح نافذة مخصصة لتعديل وتفصيل أجزاء الاسم (الاسم الأول، الأب، الجد، اللقب)
+  void _openNameEditorDialog() {
+    final currentText = _nameController.text.trim();
+    final parts = currentText.isNotEmpty ? currentText.split(RegExp(r'\s+')) : <String>[];
+
+    final firstNameCtrl = TextEditingController(text: parts.isNotEmpty ? parts[0] : '');
+    final fatherNameCtrl = TextEditingController(text: parts.length > 1 ? parts[1] : '');
+    final grandFatherCtrl = TextEditingController(text: parts.length > 2 ? parts[2] : '');
+    final familyNameCtrl = TextEditingController(text: parts.length > 3 ? parts.sublist(3).join(' ') : '');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final repo = context.watch<AppRepository>();
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.edit_note_rounded, color: AppColors.primaryBlue),
+                SizedBox(width: 8),
+                Text('تعديل وتفصيل الاسم الرباعي', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: SizedBox(
+              width: 440,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'قم بتعديل وتنسيق أجزاء الاسم بشكل منفصل لضمان الدقة وتفادي الأخطاء الإملائية:',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: firstNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'الاسم الأول (اسم الطالب) *',
+                        prefixIcon: Icon(Icons.person_outline, size: 20),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: fatherNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الأب *',
+                        prefixIcon: Icon(Icons.person_outline, size: 20),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: grandFatherCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'اسم الجد *',
+                        prefixIcon: Icon(Icons.person_outline, size: 20),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: familyNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'اللقب / اسم العائلة / القبيلة',
+                        prefixIcon: Icon(Icons.family_restroom_outlined, size: 20),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // زر التنسيق التلقائي وإزالة المسافات
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.auto_fix_high, size: 16),
+                      label: const Text('تنسيق وتنظيف المسافات الزائدة', style: TextStyle(fontSize: 12)),
+                      onPressed: () {
+                        setDialogState(() {
+                          firstNameCtrl.text = firstNameCtrl.text.trim();
+                          fatherNameCtrl.text = fatherNameCtrl.text.trim();
+                          grandFatherCtrl.text = grandFatherCtrl.text.trim();
+                          familyNameCtrl.text = familyNameCtrl.text.trim();
+                        });
+                      },
+                    ),
+                    if (repo.students.isNotEmpty && widget.student == null) ...[
+                      const Divider(height: 24),
+                      const Text(
+                        'أو اختر طالباً مسجلاً لتعديل اسمه مباشرة:',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<Student>(
+                            isExpanded: true,
+                            hint: const Text('اختر طالباً من القائمة لتحميل بياناته', style: TextStyle(fontSize: 12)),
+                            items: repo.students.take(50).map((s) {
+                              return DropdownMenuItem<Student>(
+                                value: s,
+                                child: Text('${s.fullName} (${s.studentNumber})', style: const TextStyle(fontSize: 12)),
+                              );
+                            }).toList(),
+                            onChanged: (selected) {
+                              if (selected != null) {
+                                final sParts = selected.fullName.trim().split(RegExp(r'\s+'));
+                                setDialogState(() {
+                                  firstNameCtrl.text = sParts.isNotEmpty ? sParts[0] : '';
+                                  fatherNameCtrl.text = sParts.length > 1 ? sParts[1] : '';
+                                  grandFatherCtrl.text = sParts.length > 2 ? sParts[2] : '';
+                                  familyNameCtrl.text = sParts.length > 3 ? sParts.sublist(3).join(' ') : '';
+                                });
+                                setState(() {
+                                  _idController.text = selected.studentNumber;
+                                  _phoneController.text = selected.phone;
+                                  _emailController.text = selected.email;
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check, size: 16),
+                label: const Text('تطبيق وتحديث الاسم'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  final combined = [
+                    firstNameCtrl.text.trim(),
+                    fatherNameCtrl.text.trim(),
+                    grandFatherCtrl.text.trim(),
+                    familyNameCtrl.text.trim(),
+                  ].where((p) => p.isNotEmpty).join(' ');
+
+                  if (combined.isNotEmpty) {
+                    setState(() {
+                      _nameController.text = combined;
+                    });
+                  }
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -227,10 +393,34 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextFormField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'الاسم الرباعي *'),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'يرجى إدخال اسم الطالب' : null,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _nameController,
+                        decoration: const InputDecoration(
+                          labelText: 'الاسم الرباعي *',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        validator: (v) => v == null || v.trim().isEmpty ? 'يرجى إدخال اسم الطالب' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit_note_rounded, size: 20),
+                        label: const Text('تعديل الأسماء', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryBlue,
+                          side: const BorderSide(color: AppColors.primaryBlue),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+                        ),
+                        onPressed: _openNameEditorDialog,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
