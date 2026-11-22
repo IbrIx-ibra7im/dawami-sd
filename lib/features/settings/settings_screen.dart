@@ -372,6 +372,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  // Backup Database info (Hive)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withAlpha(15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.success.withAlpha(40)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.storage_rounded, color: AppColors.success, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'قاعدة البيانات الاحتياطية: Hive Local DB',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.success),
+                              ),
+                              Text(
+                                'نسخة احتياطية محلية فورية (${repo.backupAttendanceCount} سجل حضور • ${repo.backupStudentsCount} طالب)',
+                                style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),

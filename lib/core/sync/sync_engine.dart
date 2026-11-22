@@ -17,7 +17,7 @@ class SyncEngine extends ChangeNotifier {
   final HiveHelper _hive = HiveHelper.instance;
   final SupabaseService _supabase = SupabaseService.instance;
 
-  SyncMethod _currentMethod = SyncMethod.localSafe;
+  SyncMethod _currentMethod = SyncMethod.cloudSupabase;
   bool _isSyncing = false;
   bool _isTestingConnection = false;
   bool _hasPermissionError = false;
@@ -54,37 +54,41 @@ class SyncEngine extends ChangeNotifier {
     super.dispose();
   }
 
-  /// عند بدء التشغيل: تعيين المزامنة المحلية الآمنة افتراضياً وتسوية أي سجلات عالقة
+  /// عند بدء التشغيل: تعيين المزامنة السحابية (Supabase قاعدة أساسية) افتراضياً
   Future<void> _initAndAutoFix() async {
-    // فرض المزامنة المحلية الآمنة كافتراضي لتفادي أخطاء Supabase 42501
     try {
-      final savedMethod = await _hive.getSetting('sync_method', defaultValue: 'local_safe');
-      if (savedMethod == 'cloud_supabase') {
-        // تحويل تلقائي من السحابي إلى المحلي لحل مشاكل الصلاحيات
-        _currentMethod = SyncMethod.localSafe;
-        await _hive.setSetting('sync_method', 'local_safe');
-        await markAllAsSyncedLocally();
-      }
-    } catch (_) {}
-    await refreshQueue();
-    // تسوية تلقائية لأي سجلات عالقة أو فاشلة
-    if (_pendingCount > 0) {
-      await markAllAsSyncedLocally();
-    }
-  }
-
-  Future<void> refreshQueue() async {
-    // 1. Load sync method from settings (defaults to localSafe to prevent 42501 blocking)
-    try {
-      final savedMethod = await _hive.getSetting('sync_method', defaultValue: 'local_safe');
+      final savedMethod = await _hive.getSetting('sync_method', defaultValue: 'cloud_supabase');
       if (savedMethod == 'cloud_supabase') {
         _currentMethod = SyncMethod.cloudSupabase;
       } else if (savedMethod == 'file_backup') {
         _currentMethod = SyncMethod.fileBackup;
-      } else {
+      } else if (savedMethod == 'local_safe') {
         _currentMethod = SyncMethod.localSafe;
+      } else {
+        _currentMethod = SyncMethod.cloudSupabase;
       }
-    } catch (_) {}
+    } catch (_) {
+      _currentMethod = SyncMethod.cloudSupabase;
+    }
+    await refreshQueue();
+  }
+
+  Future<void> refreshQueue() async {
+    // 1. Load sync method from settings (defaults to cloud_supabase as primary)
+    try {
+      final savedMethod = await _hive.getSetting('sync_method', defaultValue: 'cloud_supabase');
+      if (savedMethod == 'cloud_supabase') {
+        _currentMethod = SyncMethod.cloudSupabase;
+      } else if (savedMethod == 'file_backup') {
+        _currentMethod = SyncMethod.fileBackup;
+      } else if (savedMethod == 'local_safe') {
+        _currentMethod = SyncMethod.localSafe;
+      } else {
+        _currentMethod = SyncMethod.cloudSupabase;
+      }
+    } catch (_) {
+      _currentMethod = SyncMethod.cloudSupabase;
+    }
 
     final hiveItems = await _hive.getSyncQueueItems();
     final hivePending = await _hive.getPendingSyncCount();

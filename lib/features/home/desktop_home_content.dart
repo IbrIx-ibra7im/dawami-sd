@@ -383,6 +383,12 @@ class DesktopHomeContent extends StatelessWidget {
                   ),
                   onPressed: () => onNavigate(4),
                 ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  icon: const Icon(Icons.settings_outlined, color: AppColors.primaryBlue),
+                  tooltip: 'إعدادات الحضور والانصراف',
+                  onPressed: () => onNavigate(9),
+                ),
               ],
             ),
           ),

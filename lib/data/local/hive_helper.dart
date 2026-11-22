@@ -34,6 +34,8 @@ class HiveHelper {
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
+  int get attendanceCount => _isInitialized ? _attendanceBox.length : 0;
+  int get studentsCount => _isInitialized ? _studentsBox.length : 0;
 
   HiveHelper._init();
 
@@ -528,6 +530,16 @@ class HiveHelper {
 
     list.sort((a, b) => b.checkIn.compareTo(a.checkIn));
     return list;
+  }
+
+  /// Backup/Mirror remote attendance records into local Hive backup storage
+  Future<void> saveAttendanceRecords(List<AttendanceRecord> records) async {
+    if (!_isInitialized) return;
+    for (final r in records) {
+      final map = r.toMap();
+      map['is_synced'] = 1;
+      await _attendanceBox.put(r.id, map);
+    }
   }
 
   Future<int> deleteMultipleStudents(List<int> ids) async {

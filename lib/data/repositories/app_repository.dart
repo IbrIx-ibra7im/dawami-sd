@@ -25,6 +25,7 @@ class AppRepository extends ChangeNotifier {
 
   // Current logged in user (Requires authentication before entering control panel)
   bool _isLoggedIn = false;
+  bool _isPrimaryConnected = false;
   UserProfile _currentUser = UserProfile(
     id: 'kiosk-user',
     fullName: 'محطة تسجيل الحضور',
@@ -66,6 +67,15 @@ class AppRepository extends ChangeNotifier {
   List<Student> get studentsWithFingerprints => _students.where((s) => s.hasFingerprint).toList();
   int get enrolledFingerprintsCount => _students.where((s) => s.hasFingerprint).length;
   int get missingFingerprintsCount => _students.where((s) => !s.hasFingerprint).length;
+
+  // Primary (Supabase) and Backup (Hive) Database Information
+  bool get isPrimaryConnected => _isPrimaryConnected;
+  String get primaryDbName => 'Supabase (قاعدة البيانات الأساسية)';
+  String get backupDbName => 'Hive (قاعدة البيانات الاحتياطية)';
+  String get primaryDbStatusText => _isPrimaryConnected ? 'متصلة ونشطة' : 'أوفلاين (الاعتماد على النسخة الاحتياطية)';
+  String get backupDbStatusText => 'نشطة وجاهزة (حفظ محلي فوري)';
+  int get backupAttendanceCount => _hive.attendanceCount;
+  int get backupStudentsCount => _hive.studentsCount;
 
   // Statistics
   int get totalStudentsCount => _students.length;
@@ -203,70 +213,125 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> refreshStudents({String? query, int? collegeId, String? status}) async {
-    try {
-      if (_hive.isInitialized) {
-        _students = await _hive.getStudents(query: query, collegeId: collegeId, status: status);
-        if (_students.isEmpty && (query == null || query.isEmpty) && collegeId == null && (status == null || status == 'الكل')) {
-          // If Hive box is completely empty on startup, fallback to DB
-          try {
-            final dbList = await _db.getStudents(query: query, collegeId: collegeId, status: status);
-            if (dbList.isNotEmpty) {
-              _students = dbList;
-              for (final s in dbList) {
-                await _hive.insertStudent(s);
+    bool loadedFromPrimary = false;
+
+    // 1. Try Primary Database: Supabase
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        final remoteStudents = await _supabase.getStudents(
+          query: query,
+          collegeId: collegeId,
+          status: status,
+        );
+        if (remoteStudents.isNotEmpty || query != null || collegeId != null) {
+          _students = remoteStudents;
+          _isPrimaryConnected = true;
+          loadedFromPrimary = true;
+          // Mirror/Backup into local Hive storage
+          if (_hive.isInitialized) {
+            await _hive.batchInsertOrUpdateStudents(remoteStudents);
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Primary DB (Supabase) load students failed, using backup Hive: $e');
+        _isPrimaryConnected = false;
+      }
+    }
+
+    // 2. Backup Database: Hive (offline or primary fallback)
+    if (!loadedFromPrimary) {
+      try {
+        if (_hive.isInitialized) {
+          _students = await _hive.getStudents(query: query, collegeId: collegeId, status: status);
+          if (_students.isEmpty && (query == null || query.isEmpty) && collegeId == null && (status == null || status == 'الكل')) {
+            try {
+              final dbList = await _db.getStudents(query: query, collegeId: collegeId, status: status);
+              if (dbList.isNotEmpty) {
+                _students = dbList;
+                for (final s in dbList) {
+                  await _hive.insertStudent(s);
+                }
               }
-            }
+            } catch (_) {}
+          }
+        } else {
+          try {
+            _students = await _db.getStudents(query: query, collegeId: collegeId, status: status);
           } catch (_) {}
         }
-      } else {
+      } catch (_) {
         try {
           _students = await _db.getStudents(query: query, collegeId: collegeId, status: status);
         } catch (_) {}
       }
-    } catch (_) {
-      try {
-        _students = await _db.getStudents(query: query, collegeId: collegeId, status: status);
-      } catch (_) {}
     }
     notifyListeners();
   }
 
   Future<void> refreshAttendance({String? method}) async {
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    try {
-      if (_hive.isInitialized) {
-        _todayAttendance = await _hive.getAttendanceRecords(
-          sessionId: _activeSession?.id,
-          date: _activeSession == null ? today : null,
-          method: method,
-        );
-        if (_todayAttendance.isEmpty && (method == null || method == 'الكل')) {
-          try {
-            final dbAtt = await _db.getAttendanceRecords(
-              sessionId: _activeSession?.id,
-              date: _activeSession == null ? today : null,
-              method: method,
-            );
-            if (dbAtt.isNotEmpty) {
-              _todayAttendance = dbAtt;
-            }
-          } catch (_) {}
-        }
-      } else {
-        _todayAttendance = await _db.getAttendanceRecords(
-          sessionId: _activeSession?.id,
-          date: _activeSession == null ? today : null,
-          method: method,
-        );
-      }
-    } catch (_) {
+    bool loadedFromPrimary = false;
+
+    // 1. Try Primary Database: Supabase
+    if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        _todayAttendance = await _db.getAttendanceRecords(
+        final remoteRecords = await _supabase.getAttendanceRecords(
           sessionId: _activeSession?.id,
           date: _activeSession == null ? today : null,
           method: method,
         );
-      } catch (_) {}
+        if (remoteRecords.isNotEmpty) {
+          _todayAttendance = remoteRecords;
+          _isPrimaryConnected = true;
+          loadedFromPrimary = true;
+          // Mirror/Backup into local Hive storage
+          if (_hive.isInitialized) {
+            await _hive.saveAttendanceRecords(remoteRecords);
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) print('Primary DB (Supabase) load attendance failed, using backup Hive: $e');
+        _isPrimaryConnected = false;
+      }
+    }
+
+    // 2. Backup Database: Hive (offline or primary fallback)
+    if (!loadedFromPrimary) {
+      try {
+        if (_hive.isInitialized) {
+          _todayAttendance = await _hive.getAttendanceRecords(
+            sessionId: _activeSession?.id,
+            date: _activeSession == null ? today : null,
+            method: method,
+          );
+          if (_todayAttendance.isEmpty && (method == null || method == 'الكل')) {
+            try {
+              final dbAtt = await _db.getAttendanceRecords(
+                sessionId: _activeSession?.id,
+                date: _activeSession == null ? today : null,
+                method: method,
+              );
+              if (dbAtt.isNotEmpty) {
+                _todayAttendance = dbAtt;
+              }
+            } catch (_) {}
+          }
+        } else {
+          _todayAttendance = await _db.getAttendanceRecords(
+            sessionId: _activeSession?.id,
+            date: _activeSession == null ? today : null,
+            method: method,
+          );
+        }
+      } catch (_) {
+        try {
+          _todayAttendance = await _db.getAttendanceRecords(
+            sessionId: _activeSession?.id,
+            date: _activeSession == null ? today : null,
+            method: method,
+          );
+        } catch (_) {}
+      }
     }
     notifyListeners();
   }
@@ -430,8 +495,9 @@ class AppRepository extends ChangeNotifier {
 
     // Determine status (حاضر / متأخر) based on time rules
     String status = customStatus ?? 'حاضر';
+    final nowTime = DateTime.now().toIso8601String();
     
-    // Save to Hive (Primary, zero-lock, instant)
+    // 1. Save to Backup Database: Hive (Primary local safety with zero-lock instant storage)
     final recordId = await _hive.recordAttendance(
       studentId: student.id!,
       sessionId: _activeSession!.id!,
@@ -449,6 +515,25 @@ class AppRepository extends ChangeNotifier {
         deviceId: _deviceName,
       );
     } catch (_) {}
+
+    // 2. Direct Sync to Primary Database: Supabase
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.recordAttendance(
+          id: recordId,
+          studentId: student.id!,
+          sessionId: _activeSession!.id!,
+          method: method,
+          status: status,
+          deviceId: _deviceName,
+          checkIn: nowTime,
+        );
+        _isPrimaryConnected = true;
+        await _hive.markRecordAsSynced('attendance', recordId);
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB attendance sync notice (safely backed up in Hive): $e');
+      }
+    }
 
     _triggerAutoSync();
 
@@ -494,11 +579,22 @@ class AppRepository extends ChangeNotifier {
         throw Exception('ليس لديك صلاحية لإضافة طالب');
       }
     }
-    // Save to Hive
+    // 1. Save to Backup Database (Hive)
     final id = await _hive.insertStudent(student);
     try {
       await _db.insertStudent(student.copyWith(id: id));
     } catch (_) {}
+
+    // 2. Direct Sync to Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.insertStudent(student.copyWith(id: id));
+        _isPrimaryConnected = true;
+        await _hive.markRecordAsSynced('students', id.toString());
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB addStudent notice (backed up in Hive): $e');
+      }
+    }
     await refreshStudents();
   }
 
@@ -506,11 +602,21 @@ class AppRepository extends ChangeNotifier {
     if (!RoleManager.canManageStudents(currentRole)) {
       throw Exception('ليس لديك صلاحية لإضافة أو استيراد الطلاب');
     }
-    // Batch Insert to Hive
+    // Batch Insert to Backup Database (Hive)
     final count = await _hive.batchInsertOrUpdateStudents(students);
     try {
       await _db.batchInsertOrUpdateStudents(students);
     } catch (_) {}
+
+    // Batch Insert to Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.batchUpsertStudents(students.map((s) => s.toMap()).toList());
+        _isPrimaryConnected = true;
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB batchUpsertStudents notice (backed up in Hive): $e');
+      }
+    }
     await refreshStudents();
     return count;
   }
@@ -520,47 +626,128 @@ class AppRepository extends ChangeNotifier {
     try {
       await _db.linkBarcodeToStudent(studentId, newBarcode);
     } catch (_) {}
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        final s = await _hive.getStudentById(studentId);
+        if (s != null) {
+          await _supabase.updateStudent(s);
+          _isPrimaryConnected = true;
+        }
+      } catch (_) {}
+    }
     await refreshStudents();
   }
 
   Future<void> updateStudent(Student student) async {
+    // 1. Update in Backup Database (Hive)
     await _hive.updateStudent(student);
     try {
       await _db.updateStudent(student);
     } catch (_) {}
+
+    // 2. Update in Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.updateStudent(student);
+        _isPrimaryConnected = true;
+        if (student.id != null) {
+          await _hive.markRecordAsSynced('students', student.id.toString());
+        }
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB updateStudent notice (backed up in Hive): $e');
+      }
+    }
     await refreshStudents();
   }
 
   Future<void> deleteStudent(int studentId) async {
+    Student? targetStudent;
+    try {
+      targetStudent = await _hive.getStudentById(studentId);
+    } catch (_) {}
+
+    // 1. Delete from Backup Database (Hive)
     await _hive.deleteStudent(studentId);
     try {
       await _db.deleteStudent(studentId);
     } catch (_) {}
+
+    // 2. Delete from Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.deleteStudent(studentId, targetStudent?.universityId);
+        _isPrimaryConnected = true;
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB deleteStudent notice: $e');
+      }
+    }
     await refreshStudents();
   }
 
   Future<void> deleteMultipleStudents(List<int> studentIds) async {
+    // 1. Delete from Backup Database (Hive)
     await _hive.deleteMultipleStudents(studentIds);
     try {
       await _db.deleteMultipleStudents(studentIds);
     } catch (_) {}
+
+    // 2. Delete from Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.deleteMultipleStudents(studentIds);
+        _isPrimaryConnected = true;
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB deleteMultipleStudents notice: $e');
+      }
+    }
     await refreshStudents();
   }
 
   Future<void> deleteAttendanceRecord(String id) async {
+    // 1. Delete from Backup Database (Hive)
     await _hive.deleteAttendanceRecord(id);
     try {
       await _db.deleteAttendanceRecord(id);
     } catch (_) {}
+
+    // 2. Delete from Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.deleteAttendanceRecord(id);
+        _isPrimaryConnected = true;
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB deleteAttendanceRecord notice: $e');
+      }
+    }
     await refreshAttendance();
   }
 
   Future<void> deleteMultipleAttendanceRecords(List<String> ids) async {
+    // 1. Delete from Backup Database (Hive)
     await _hive.deleteMultipleAttendanceRecords(ids);
     try {
       await _db.deleteMultipleAttendanceRecords(ids);
     } catch (_) {}
+
+    // 2. Delete from Primary Database (Supabase)
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        await _supabase.deleteMultipleAttendanceRecords(ids);
+        _isPrimaryConnected = true;
+      } catch (e) {
+        if (kDebugMode) print('Direct primary DB deleteMultipleAttendanceRecords notice: $e');
+      }
+    }
     await refreshAttendance();
+  }
+
+  /// Full two-way sync between Primary Database (Supabase) and Backup Database (Hive)
+  Future<int> syncDatabases() async {
+    final count = await _hive.syncWithSupabase();
+    await refreshStudents();
+    await refreshAttendance();
+    notifyListeners();
+    return count;
   }
 
   // --- Biometric / Fingerprint Operations ---

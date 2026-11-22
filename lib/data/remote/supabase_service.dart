@@ -4,6 +4,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/api_constants.dart';
 import '../local/hive_helper.dart';
 import '../models/sync_and_auth_models.dart';
+import '../models/student.dart';
+import '../models/attendance_record.dart';
+import '../models/academic_models.dart';
+import '../models/lecture.dart';
 
 class SupabaseTestResult {
   final bool isConnected;
@@ -335,6 +339,272 @@ END \$\$;
     } catch (e) {
       if (kDebugMode) print('Supabase batchUpsertStudents notice: $e');
       return false;
+    }
+  }
+
+  // ============================================================
+  // --- PRIMARY DATABASE OPERATIONS (SUPABASE PRIMARY SOURCE) ---
+  // ============================================================
+
+  /// Fetch students from primary database (Supabase)
+  Future<List<Student>> getStudents({String? query, int? collegeId, String? status}) async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      var builder = _client!.from('students').select();
+      if (collegeId != null) {
+        builder = builder.eq('college_id', collegeId);
+      }
+      if (status != null && status != 'الكل') {
+        builder = builder.eq('status', status);
+      }
+      final response = await builder.order('id', ascending: false);
+      final list = <Student>[];
+      for (final item in response) {
+        final map = Map<String, dynamic>.from(item);
+        final student = Student.fromMap(map);
+        if (query != null && query.trim().isNotEmpty) {
+          final q = query.trim().toLowerCase();
+          final match = student.fullName.toLowerCase().contains(q) ||
+              student.universityId.toLowerCase().contains(q) ||
+              student.phone.contains(q);
+          if (!match) continue;
+        }
+        list.add(student);
+      }
+      return list;
+    } catch (e) {
+      if (kDebugMode) print('Supabase getStudents error: $e');
+      rethrow;
+    }
+  }
+
+  /// Insert student into primary database (Supabase)
+  Future<Student?> insertStudent(Student student) async {
+    if (!_isConfigured || _client == null) return null;
+    try {
+      final payload = student.toMap();
+      payload.remove('college_name');
+      payload.remove('department_name');
+      payload.remove('level_name');
+      payload.remove('is_synced');
+      payload.remove('student_name');
+      if (payload['id'] == null) {
+        payload.remove('id');
+      }
+      final response = await _client!.from('students').upsert(payload, onConflict: 'university_id').select().maybeSingle();
+      if (response != null) {
+        return Student.fromMap(Map<String, dynamic>.from(response));
+      }
+      return student;
+    } catch (e) {
+      if (kDebugMode) print('Supabase insertStudent error: $e');
+      rethrow;
+    }
+  }
+
+  /// Update student in primary database (Supabase)
+  Future<bool> updateStudent(Student student) async {
+    if (!_isConfigured || _client == null) return false;
+    try {
+      final payload = student.toMap();
+      payload.remove('college_name');
+      payload.remove('department_name');
+      payload.remove('level_name');
+      payload.remove('is_synced');
+      payload.remove('student_name');
+      if (student.id != null) {
+        await _client!.from('students').update(payload).eq('id', student.id!);
+      } else {
+        await _client!.from('students').update(payload).eq('university_id', student.universityId);
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase updateStudent error: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete student from primary database (Supabase)
+  Future<bool> deleteStudent(int studentId, [String? universityId]) async {
+    if (!_isConfigured || _client == null) return false;
+    try {
+      if (studentId > 0) {
+        await _client!.from('students').delete().eq('id', studentId);
+      } else if (universityId != null && universityId.isNotEmpty) {
+        await _client!.from('students').delete().eq('university_id', universityId);
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase deleteStudent error: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete multiple students from primary database (Supabase)
+  Future<bool> deleteMultipleStudents(List<int> studentIds) async {
+    if (!_isConfigured || _client == null || studentIds.isEmpty) return false;
+    try {
+      await _client!.from('students').delete().inFilter('id', studentIds);
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase deleteMultipleStudents error: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetch attendance records from primary database (Supabase)
+  Future<List<AttendanceRecord>> getAttendanceRecords({int? sessionId, String? date, String? method}) async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      var builder = _client!.from('attendance').select('*, students(full_name, university_id)');
+      if (sessionId != null) {
+        builder = builder.eq('session_id', sessionId);
+      }
+      if (method != null && method != 'الكل') {
+        builder = builder.eq('method', method);
+      }
+      final response = await builder.order('check_in', ascending: false);
+      final list = <AttendanceRecord>[];
+      for (final item in response) {
+        final map = Map<String, dynamic>.from(item);
+        if (map['students'] is Map) {
+          final s = map['students'] as Map;
+          map['student_name'] = s['full_name'];
+          map['university_id'] = s['university_id'];
+        }
+        final record = AttendanceRecord.fromMap(map);
+        if (date != null && !record.checkIn.startsWith(date)) continue;
+        list.add(record);
+      }
+      return list;
+    } catch (e) {
+      if (kDebugMode) print('Supabase getAttendanceRecords with join notice (fallback simple): $e');
+      try {
+        var simpleBuilder = _client!.from('attendance').select();
+        if (sessionId != null) simpleBuilder = simpleBuilder.eq('session_id', sessionId);
+        if (method != null && method != 'الكل') simpleBuilder = simpleBuilder.eq('method', method);
+        final response = await simpleBuilder.order('check_in', ascending: false);
+        final list = <AttendanceRecord>[];
+        for (final item in response) {
+          final map = Map<String, dynamic>.from(item);
+          final record = AttendanceRecord.fromMap(map);
+          if (date != null && !record.checkIn.startsWith(date)) continue;
+          list.add(record);
+        }
+        return list;
+      } catch (innerErr) {
+        if (kDebugMode) print('Supabase simple getAttendanceRecords error: $innerErr');
+        rethrow;
+      }
+    }
+  }
+
+  /// Record attendance directly into primary database (Supabase)
+  Future<bool> recordAttendance({
+    required String id,
+    required int studentId,
+    required int sessionId,
+    required String method,
+    required String status,
+    required String deviceId,
+    required String checkIn,
+    String? checkOut,
+  }) async {
+    if (!_isConfigured || _client == null) return false;
+    try {
+      final payload = <String, dynamic>{
+        'id': id,
+        'student_id': studentId,
+        'session_id': sessionId,
+        'method': method,
+        'status': status,
+        'device_id': deviceId,
+        'check_in': checkIn,
+      };
+      if (checkOut != null) {
+        payload['check_out'] = checkOut;
+      }
+      await _client!.from('attendance').upsert(payload, onConflict: 'id');
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase recordAttendance error: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete attendance record from primary database (Supabase)
+  Future<bool> deleteAttendanceRecord(String id) async {
+    if (!_isConfigured || _client == null) return false;
+    try {
+      await _client!.from('attendance').delete().eq('id', id);
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase deleteAttendanceRecord error: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete multiple attendance records from primary database (Supabase)
+  Future<bool> deleteMultipleAttendanceRecords(List<String> ids) async {
+    if (!_isConfigured || _client == null || ids.isEmpty) return false;
+    try {
+      await _client!.from('attendance').delete().inFilter('id', ids);
+      return true;
+    } catch (e) {
+      if (kDebugMode) print('Supabase deleteMultipleAttendanceRecords error: $e');
+      rethrow;
+    }
+  }
+
+  /// Fetch lectures from primary database (Supabase)
+  Future<List<Lecture>> getLectures() async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      final response = await _client!.from('lectures').select();
+      return (response as List).map((i) => Lecture.fromMap(Map<String, dynamic>.from(i))).toList();
+    } catch (e) {
+      if (kDebugMode) print('Supabase getLectures error: $e');
+      return [];
+    }
+  }
+
+  /// Fetch colleges from primary database (Supabase)
+  Future<List<College>> getColleges() async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      final response = await _client!.from('colleges').select();
+      return (response as List).map((i) => College.fromMap(Map<String, dynamic>.from(i))).toList();
+    } catch (e) {
+      if (kDebugMode) print('Supabase getColleges error: $e');
+      return [];
+    }
+  }
+
+  /// Fetch departments from primary database (Supabase)
+  Future<List<Department>> getDepartments({int? collegeId}) async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      var builder = _client!.from('departments').select();
+      if (collegeId != null) {
+        builder = builder.eq('college_id', collegeId);
+      }
+      final response = await builder;
+      return (response as List).map((i) => Department.fromMap(Map<String, dynamic>.from(i))).toList();
+    } catch (e) {
+      if (kDebugMode) print('Supabase getDepartments error: $e');
+      return [];
+    }
+  }
+
+  /// Fetch academic levels from primary database (Supabase)
+  Future<List<AcademicLevel>> getAcademicLevels() async {
+    if (!_isConfigured || _client == null) return [];
+    try {
+      final response = await _client!.from('academic_levels').select().order('order_no', ascending: true);
+      return (response as List).map((i) => AcademicLevel.fromMap(Map<String, dynamic>.from(i))).toList();
+    } catch (e) {
+      if (kDebugMode) print('Supabase getAcademicLevels error: $e');
+      return [];
     }
   }
 }
