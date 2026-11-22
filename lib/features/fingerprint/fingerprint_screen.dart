@@ -13,6 +13,7 @@ import '../qr_scanner/barcode_camera_dialog.dart';
 import '../../core/services/update_service.dart';
 import '../../data/models/update_info.dart';
 import '../settings/widgets/update_dialog.dart';
+import '../attendance/attendance_list_screen.dart';
 
 import '../../data/models/biometric_models.dart';
 
@@ -381,6 +382,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   },
                 ),
               ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: Colors.white),
+              tooltip: 'إعدادات الحضور والانصراف وقواعد البيانات',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendanceListScreen()),
+                );
+              },
+            ),
           ],
         ),
         body: SafeArea(

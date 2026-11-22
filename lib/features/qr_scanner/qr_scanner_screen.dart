@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/date_helper.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
+import '../attendance/attendance_list_screen.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -249,20 +250,58 @@ class _QrScannerScreenState extends State<QrScannerScreen> with SingleTickerProv
           elevation: 0,
           actions: [
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: repo.isPrimaryConnected ? AppColors.success.withAlpha(25) : AppColors.warning.withAlpha(25),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: repo.isPrimaryConnected ? AppColors.success : AppColors.warning),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    repo.isPrimaryConnected ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                    size: 13,
+                    color: repo.isPrimaryConnected ? AppColors.success : AppColors.warning,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    repo.isPrimaryConnected ? 'Supabase متصل' : 'Hive احتياطي',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: repo.isPrimaryConnected ? AppColors.success : AppColors.warning,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.turquoise.withAlpha(30),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: AppColors.turquoise),
               ),
               child: const Row(
                 children: [
                   Icon(Icons.bolt, size: 14, color: AppColors.turquoise),
                   SizedBox(width: 4),
-                  Text('القارئ نشط وفوري', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                  Text('القارئ نشط', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined, color: Colors.white),
+              tooltip: 'إعدادات الحضور والانصراف',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AttendanceListScreen()),
+                );
+              },
             ),
           ],
         ),

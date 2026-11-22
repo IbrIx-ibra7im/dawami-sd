@@ -202,6 +202,7 @@ class AppRepository extends ChangeNotifier {
         }
       } catch (_) {}
 
+      await checkPrimaryConnection();
       await refreshStudents();
       await refreshAttendance();
       await refreshFingerprints();
@@ -744,10 +745,27 @@ class AppRepository extends ChangeNotifier {
   /// Full two-way sync between Primary Database (Supabase) and Backup Database (Hive)
   Future<int> syncDatabases() async {
     final count = await _hive.syncWithSupabase();
+    await checkPrimaryConnection();
     await refreshStudents();
     await refreshAttendance();
     notifyListeners();
     return count;
+  }
+
+  /// Check connectivity to Primary Database (Supabase)
+  Future<bool> checkPrimaryConnection() async {
+    if (_supabase.isConfigured && _supabase.client != null) {
+      try {
+        final res = await _supabase.testConnection();
+        _isPrimaryConnected = res.isConnected;
+      } catch (_) {
+        _isPrimaryConnected = false;
+      }
+    } else {
+      _isPrimaryConnected = false;
+    }
+    notifyListeners();
+    return _isPrimaryConnected;
   }
 
   // --- Biometric / Fingerprint Operations ---

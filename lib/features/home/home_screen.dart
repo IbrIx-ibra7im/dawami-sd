@@ -352,6 +352,42 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    // Quick Attendance Settings & Databases Status
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AttendanceListScreen()),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.surfaceDark : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              repo.isPrimaryConnected ? Icons.cloud_done_rounded : Icons.save_rounded,
+                              size: 16,
+                              color: repo.isPrimaryConnected ? AppColors.success : AppColors.primaryBlue,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'قاعدة البيانات: Supabase أساسية (${repo.isPrimaryConnected ? "متصلة" : "أوفلاين"}) • Hive احتياطية (${repo.backupAttendanceCount} سجل)',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            const Icon(Icons.tune_rounded, size: 16, color: AppColors.primaryBlue),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
