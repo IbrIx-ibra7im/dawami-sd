@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/pdf_report_helper.dart';
 import '../../data/models/student.dart';
+import '../../data/repositories/app_repository.dart';
 
 class StudentCardDialog extends StatelessWidget {
   final Student student;
@@ -119,16 +123,29 @@ class StudentCardDialog extends StatelessWidget {
             const SizedBox(height: 20),
             ElevatedButton.icon(
               icon: const Icon(Icons.print_outlined),
-              label: const Text('طباعة البطاقة'),
+              label: const Text('طباعة البطاقة الرسمية (PDF)'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 44),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم إرسال بطاقة الطالب إلى الطابعة')),
-                );
+              onPressed: () async {
+                final repo = context.read<AppRepository>();
+                try {
+                  await Printing.layoutPdf(
+                    name: 'Student_Card_${student.universityId}',
+                    onLayout: (format) => PdfReportHelper.generateStudentCardPdf(
+                      student: student,
+                      universityName: repo.universityName,
+                    ),
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('تعذر فتح نافذة الطباعة: $e'), backgroundColor: AppColors.danger),
+                    );
+                  }
+                }
               },
             ),
           ],

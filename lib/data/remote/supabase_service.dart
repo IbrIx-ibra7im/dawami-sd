@@ -73,6 +73,14 @@ ALTER TABLE IF EXISTS public.audit_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.student_fingerprints DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.student_enrollments DISABLE ROW LEVEL SECURITY;
 
+-- 3. ترقية وتوافق حقول جدول الطلاب لمواصفات تطبيق دوامي
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS student_number VARCHAR(50);
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS college VARCHAR(255);
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS department VARCHAR(255);
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS academic_level VARCHAR(100);
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS barcode_id VARCHAR(100);
+ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS fingerprint_registered BOOLEAN DEFAULT FALSE;
+
 -- 3. في حال كان نظام RLS مفروضاً إبقاؤه مفعلاً، يتم تطبيق سياسات السماح الشاملة التالية:
 DO \$\$
 DECLARE

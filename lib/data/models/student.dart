@@ -19,6 +19,14 @@ class Student {
   final String? departmentName;
   final String? levelName;
 
+  // Aliases for user prompt requirements
+  String get studentNumber => universityId;
+  String get barcodeId => qrCode;
+  bool get fingerprintRegistered => hasFingerprint;
+  String get college => collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية';
+  String get department => departmentName ?? 'علوم الحاسوب';
+  String get academicLevel => levelName ?? 'المستوى الأول';
+
   bool get hasFingerprint =>
       fingerprintId != null &&
       fingerprintId!.isNotEmpty &&
@@ -51,6 +59,7 @@ class Student {
     return {
       if (id != null) 'id': id,
       'university_id': universityId,
+      'student_number': universityId, // Alias for Supabase column requirement
       'full_name': fullName,
       'phone': phone,
       'email': email,
@@ -60,11 +69,16 @@ class Student {
       'semester_id': semesterId,
       'status': status,
       'qr_code': qrCode,
+      'barcode_id': qrCode, // Alias for Supabase column requirement
       'fingerprint_id': fingerprintId,
       'fingerprint_status': fingerprintStatus,
+      'fingerprint_registered': hasFingerprint, // Alias for Supabase column requirement
       if (fingerprintQuality != null) 'fingerprint_quality': fingerprintQuality,
       if (fingerprintEnrolledAt != null) 'fingerprint_enrolled_at': fingerprintEnrolledAt,
       'photo_url': photoUrl,
+      'college': collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية',
+      'department': departmentName ?? 'علوم الحاسوب',
+      'academic_level': levelName ?? 'المستوى الأول',
       if (collegeName != null) 'college_name': collegeName,
       if (departmentName != null) 'department_name': departmentName,
       if (levelName != null) 'level_name': levelName,
@@ -96,10 +110,22 @@ class Student {
   factory Student.fromMap(Map<dynamic, dynamic> map) {
     final fpId = map['fingerprint_id']?.toString();
     final explicitFpStatus = map['fingerprint_status']?.toString();
+    final fpRegistered = map['fingerprint_registered'] == true ||
+        map['fingerprint_registered'] == 1 ||
+        map['fingerprint_registered'] == 'true';
+
+    final effectiveStatus = explicitFpStatus ??
+        (fpRegistered || (fpId != null && fpId.isNotEmpty) ? 'مسجلة' : 'غير مسجلة');
+
+    final uniId = (map['student_number'] ?? map['university_id'])?.toString() ?? '';
+    final code = (map['barcode_id'] ?? map['qr_code'])?.toString() ?? '';
+    final cName = (map['college'] ?? map['college_name'])?.toString();
+    final dName = (map['department'] ?? map['department_name'])?.toString();
+    final lName = (map['academic_level'] ?? map['level_name'])?.toString();
 
     return Student(
       id: (map['id'] as num?)?.toInt(),
-      universityId: map['university_id']?.toString() ?? '',
+      universityId: uniId,
       fullName: map['full_name']?.toString() ?? '',
       phone: map['phone']?.toString() ?? '',
       email: map['email']?.toString() ?? '',
@@ -108,15 +134,15 @@ class Student {
       levelId: (map['level_id'] as num?)?.toInt() ?? 1,
       semesterId: (map['semester_id'] as num?)?.toInt() ?? 1,
       status: map['status']?.toString() ?? 'نشط',
-      qrCode: map['qr_code']?.toString() ?? '',
+      qrCode: code,
       fingerprintId: fpId,
-      fingerprintStatus: explicitFpStatus ?? (fpId != null && fpId.isNotEmpty ? 'مسجلة' : 'غير مسجلة'),
+      fingerprintStatus: effectiveStatus,
       fingerprintQuality: (map['fingerprint_quality'] as num?)?.toInt(),
       fingerprintEnrolledAt: map['fingerprint_enrolled_at']?.toString(),
       photoUrl: map['photo_url']?.toString(),
-      collegeName: map['college_name']?.toString(),
-      departmentName: map['department_name']?.toString(),
-      levelName: map['level_name']?.toString(),
+      collegeName: cName,
+      departmentName: dName,
+      levelName: lName,
     );
   }
 

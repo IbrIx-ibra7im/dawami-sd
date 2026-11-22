@@ -80,24 +80,39 @@ CREATE TABLE IF NOT EXISTS attendance_sessions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 9. جدول الطلاب (students)
+-- 9. جدول الطلاب (students) بمواصفات تطبيق دوامي المحدثة
 CREATE TABLE IF NOT EXISTS students (
-    id SERIAL PRIMARY KEY,
-    university_id VARCHAR(50) UNIQUE NOT NULL,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_number VARCHAR(50) UNIQUE NOT NULL,
+    university_id VARCHAR(50) UNIQUE, -- متوافق مع الحقل السابق
     full_name VARCHAR(255) NOT NULL,
+    college VARCHAR(255) NOT NULL DEFAULT 'كلية علوم الحاسوب والتنمية البشرية',
+    department VARCHAR(255) NOT NULL DEFAULT 'علوم الحاسوب',
+    academic_level VARCHAR(100) NOT NULL DEFAULT 'المستوى الأول',
+    college_id INT REFERENCES colleges(id),
+    department_id INT REFERENCES departments(id),
+    level_id INT REFERENCES academic_levels(id),
+    semester_id INT REFERENCES semesters(id),
     phone VARCHAR(30) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    college_id INT NOT NULL REFERENCES colleges(id),
-    department_id INT NOT NULL REFERENCES departments(id),
-    level_id INT NOT NULL REFERENCES academic_levels(id),
-    semester_id INT NOT NULL REFERENCES semesters(id),
-    status VARCHAR(50) NOT NULL DEFAULT 'نشط', -- 'نشط', 'متوقف', 'متخرج'
-    qr_code TEXT NOT NULL,
-    fingerprint_id VARCHAR(100),
+    email VARCHAR(255),
     photo_url TEXT,
+    barcode_id VARCHAR(100) UNIQUE,
+    qr_code TEXT, -- متوافق مع الحقل السابق
+    fingerprint_id VARCHAR(100),
+    fingerprint_registered BOOLEAN NOT NULL DEFAULT FALSE,
+    fingerprint_status VARCHAR(50) NOT NULL DEFAULT 'غير مسجلة',
+    fingerprint_quality INT,
+    fingerprint_enrolled_at TIMESTAMPTZ,
+    status VARCHAR(50) NOT NULL DEFAULT 'نشط', -- 'نشط', 'متوقف', 'متخرج'
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- فهارس فريدة وسريعة للبحث والتحقق
+CREATE INDEX IF NOT EXISTS idx_students_student_number ON students(student_number);
+CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON students(barcode_id);
+CREATE INDEX IF NOT EXISTS idx_students_fingerprint_id ON students(fingerprint_id);
+CREATE INDEX IF NOT EXISTS idx_students_full_name ON students(full_name);
 
 -- 10. جدول الحضور (attendance) - مع منع التكرار Idempotent
 CREATE TABLE IF NOT EXISTS attendance (

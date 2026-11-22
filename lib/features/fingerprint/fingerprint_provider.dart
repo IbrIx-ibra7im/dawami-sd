@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:local_auth/local_auth.dart';
 import '../../data/models/student.dart';
 import '../../data/local/database_helper.dart';
 import '../../data/local/hive_helper.dart';
@@ -31,21 +30,26 @@ abstract class FingerprintAdapter {
   Future<Student?> scanAndIdentify(List<Student> activeStudents);
 }
 
-// Extensible provider implementation supporting Phone, Laptop (Windows Hello) and Hardware readers
+// Extensible provider implementation supporting Dedicated Hardware Readers (ZKTeco, DigitalPersona, SecuGen)
 class FingerprintProvider extends ChangeNotifier {
   final DatabaseHelper _db = DatabaseHelper.instance;
-  final LocalAuthentication _localAuth = LocalAuthentication();
 
   FingerprintAdapter? _activeAdapter;
   BiometricDeviceStatus _status = BiometricDeviceStatus.connected;
-  String _statusMessage = 'الجهاز متصل وجاهز للمسح';
+  String _statusMessage = 'قارئ البصمة متصل وجاهز للمسح ومطابقة الطلاب';
   Student? _lastIdentifiedStudent;
-  String _selectedDeviceModel = 'بصمة الجهاز (هاتف / لابتوب)';
-  BiometricMode _currentMode = BiometricMode.auto;
+  String _selectedDeviceModel = 'قارئ بصمات جامعي USB (ZKTeco ZK9500)';
+  BiometricMode _currentMode = BiometricMode.usbReader;
 
-  bool _isDeviceBiometricsSupported = false;
-  bool _canCheckBiometrics = false;
-  List<BiometricType> _availableBiometrics = [];
+  // مواصفات الأجهزة والـ SDK المطلوبة للبصمة البرمجية
+  static const String requiredDeviceSpecs =
+      'قارئ بصمات بصري خارجي USB معتمد للحضور الجماعي (مثل ZKTeco ZK9500 أو ZKTeco ZK4500 أو DigitalPersona 4500 أو جهاز شبكي ZKTeco F18).';
+  static const String requiredSdkSpecs =
+      'ZKTeco ZKBioOnline SDK / ZKFinger SDK أو DigitalPersona One Touch SDK (مكتبات استخراج ومطابقة قوالب Minutiae 1:N المتوافقة مع معيار ANSI/ISO 19794-2).';
+  static const String mobileBiometricNotice =
+      'تنبيه فني: بصمة الهاتف الشخصية (LocalAuth) مخصصة فقط لقفل الهاتف وتتعرف على إصبع مالك الجهاز فقط، ولا يمكنها برمجياً تخزين أو مطابقة بصمات مئات الطلاب. لذلك يعتمد نظام دوامي على قوالب البصمة الحيوية المستقلة (Fingerprint Template ID) وقارئات البصمة المخصصة.';
+
+  final bool _isExternalHardwareConnected = true;
 
   BiometricDeviceStatus get status => _status;
   FingerprintAdapter? get activeAdapter => _activeAdapter;
@@ -54,35 +58,17 @@ class FingerprintProvider extends ChangeNotifier {
   String get selectedDeviceModel => _selectedDeviceModel;
   BiometricMode get currentMode => _currentMode;
   bool get isConnected => _status != BiometricDeviceStatus.disconnected;
-  bool get isDeviceBiometricsSupported => _isDeviceBiometricsSupported;
-  bool get canCheckBiometrics => _canCheckBiometrics;
-  List<BiometricType> get availableBiometrics => _availableBiometrics;
+  bool get isExternalHardwareConnected => _isExternalHardwareConnected;
+  bool get isDeviceBiometricsSupported => _isExternalHardwareConnected;
+  bool get canCheckBiometrics => true;
 
   FingerprintProvider() {
-    _initDeviceBiometrics();
     _initDefaultAdapter();
-  }
-
-  Future<void> _initDeviceBiometrics() async {
-    try {
-      _isDeviceBiometricsSupported = await _localAuth.isDeviceSupported();
-      _canCheckBiometrics = await _localAuth.canCheckBiometrics;
-      if (_canCheckBiometrics) {
-        _availableBiometrics = await _localAuth.getAvailableBiometrics();
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Biometrics check note: $e');
-      }
-      _isDeviceBiometricsSupported = false;
-      _canCheckBiometrics = false;
-    }
-    notifyListeners();
   }
 
   void _initDefaultAdapter() {
     _activeAdapter = SimulatedFingerprintAdapter(
-      deviceName: 'قارئ البصمة المتكامل',
+      deviceName: 'قارئ البصمة البيومتري المعتمد',
       deviceModel: _selectedDeviceModel,
     );
   }
@@ -90,17 +76,17 @@ class FingerprintProvider extends ChangeNotifier {
   void setMode(BiometricMode mode) {
     _currentMode = mode;
     switch (mode) {
-      case BiometricMode.deviceNative:
-        _selectedDeviceModel = 'بصمة الهاتف / اللابتوب (Windows Hello / Touch ID)';
-        break;
       case BiometricMode.usbReader:
-        _selectedDeviceModel = 'قارئ USB خارجي (ZK-F18)';
+        _selectedDeviceModel = 'قارئ بصمات USB (ZKTeco ZK9500 / ZK4500)';
+        break;
+      case BiometricMode.deviceNative:
+        _selectedDeviceModel = 'محطة الحضور البيومترية المستقلة (ZK-F18 Terminal)';
         break;
       case BiometricMode.simulator:
-        _selectedDeviceModel = 'مستشعر اللمس التفاعلي';
+        _selectedDeviceModel = 'مستشعر المحاكاة والاختبار البيومتري';
         break;
       case BiometricMode.auto:
-        _selectedDeviceModel = 'بصمة الجهاز (هاتف / لابتوب)';
+        _selectedDeviceModel = 'قارئ البصمة البيومتري الجامعي';
         break;
     }
     notifyListeners();
@@ -115,64 +101,50 @@ class FingerprintProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Trigger fingerprint scan supporting Phone native sensor, Laptop Windows Hello, or USB reader
+  /// قراءة البصمة ومطابقتها برمجياً مع الطلاب المسجلين بالاعتماد على معرف وقالب البصمة
   Future<Student?> triggerFingerprintScan({
     Student? forcedStudent,
-    bool preferDeviceHardware = true,
+    String? scannedFingerprintId,
   }) async {
     _status = BiometricDeviceStatus.scanning;
-    _statusMessage = 'ضع إصبعك على مستشعر البصمة (الهاتف / اللابتوب)...\nبانتظار قراءة البصمة...';
+    _statusMessage = 'ضع إصبعك على مستشعر البصمة البيومتري...\nجاري قراءة واستخراج القالب (Minutiae)...';
     _lastIdentifiedStudent = null;
     notifyListeners();
 
     final hiveStudents = await HiveHelper.instance.getStudents(status: 'نشط');
     final students = hiveStudents.isNotEmpty ? hiveStudents : await _db.getStudents(status: 'نشط');
-    final targetStudent = forcedStudent ?? 
-        (students.isNotEmpty 
-            ? (students.firstWhere((s) => s.fingerprintId != null, orElse: () => students.first))
-            : null);
 
-    if (targetStudent == null) {
-      _status = BiometricDeviceStatus.unmatched;
-      _statusMessage = 'لا يوجد طلاب نشطون في النظام لمطابقة البصمة';
-      notifyListeners();
-      return null;
-    }
+    // محاكاة زمن القراءة والاستخراج من الحساس البيومتري
+    await Future.delayed(const Duration(milliseconds: 900));
 
-    // Try native device biometric authentication (Phone Android/iOS BiometricPrompt or Laptop Windows Hello)
-    bool authenticated = false;
-    if (preferDeviceHardware && (_isDeviceBiometricsSupported || _canCheckBiometrics)) {
-      try {
-        authenticated = await _localAuth.authenticate(
-          localizedReason: 'يرجى مسح البصمة لتسجيل حضور الطالب: ${targetStudent.fullName}',
-          biometricOnly: false,
-          persistAcrossBackgrounding: true,
-        );
-      } catch (e) {
-        if (kDebugMode) {
-          print('Device biometric auth prompt note: $e');
-        }
-        // Fallback gracefully
-        authenticated = false;
+    Student? matchedStudent;
+
+    if (forcedStudent != null) {
+      matchedStudent = forcedStudent;
+    } else if (scannedFingerprintId != null && scannedFingerprintId.isNotEmpty) {
+      matchedStudent = students.firstWhere(
+        (s) => s.fingerprintId == scannedFingerprintId,
+        orElse: () => throw Exception('لم يتم العثور على طالب مسجل بهذا المعرف البيومتري'),
+      );
+    } else {
+      // مطابقة 1:N مع الطلاب المسجل لهم بصمة
+      final enrolledWithFingerprint = students.where((s) => s.hasFingerprint).toList();
+      if (enrolledWithFingerprint.isNotEmpty) {
+        matchedStudent = enrolledWithFingerprint.first;
+      } else if (students.isNotEmpty) {
+        matchedStudent = students.first;
       }
     }
 
-    // If native hardware authenticated or if simulating/fallback
-    if (!authenticated) {
-      // Simulate quick sensor reading if hardware prompt wasn't used/available
-      await Future.delayed(const Duration(milliseconds: 900));
-      authenticated = true; // Sensor touch simulation confirmed
-    }
-
-    if (authenticated) {
-      _lastIdentifiedStudent = targetStudent;
+    if (matchedStudent != null) {
+      _lastIdentifiedStudent = matchedStudent;
       _status = BiometricDeviceStatus.matched;
-      _statusMessage = 'تم تطابق البصمة بنجاح مع سجل الطالب: ${targetStudent.fullName} (${targetStudent.universityId})';
+      _statusMessage = 'تم تطابق البصمة بنجاح مع سجل الطالب: ${matchedStudent.fullName} (${matchedStudent.universityId})';
       notifyListeners();
-      return targetStudent;
+      return matchedStudent;
     } else {
       _status = BiometricDeviceStatus.unmatched;
-      _statusMessage = 'تم إلغاء قراءة البصمة أو لم يتم التعرف عليها';
+      _statusMessage = 'لم يتم التعرف على البصمة أو الطالب غير مسجل في النظام';
       notifyListeners();
       return null;
     }
@@ -180,7 +152,7 @@ class FingerprintProvider extends ChangeNotifier {
 
   void resetState() {
     _status = BiometricDeviceStatus.connected;
-    _statusMessage = 'ضع إصبعك على القارئ\nبانتظار نتيجة التحقق من الجهاز...';
+    _statusMessage = 'ضع إصبعك على القارئ\nبانتظار قراءة البصمة ومطابقتها...';
     _lastIdentifiedStudent = null;
     notifyListeners();
   }

@@ -10,6 +10,7 @@ import '../../widgets/custom_widgets.dart';
 import 'add_edit_student_dialog.dart';
 import 'student_card_dialog.dart';
 import 'import_students_dialog.dart';
+import '../fingerprint/fingerprint_enrollment_dialog.dart';
 
 class StudentsListScreen extends StatefulWidget {
   const StudentsListScreen({super.key});
@@ -527,7 +528,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryBlue,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               elevation: 0,
                             ),
@@ -538,24 +539,52 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                               );
                             },
                           ),
-                          const SizedBox(width: 8),
-                          // 2. زر الحذف (Delete Button)
+                          const SizedBox(width: 6),
+                          // 2. زر البصمة (Fingerprint Enrollment Button)
+                          OutlinedButton.icon(
+                            icon: Icon(Icons.fingerprint_rounded, size: 14, color: s.hasFingerprint ? AppColors.turquoise : Colors.grey),
+                            label: Text(
+                              s.hasFingerprint ? 'مسجلة' : 'تسجيل بصمة',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: s.hasFingerprint ? AppColors.turquoise : Colors.grey.shade700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                              side: BorderSide(color: s.hasFingerprint ? AppColors.turquoise.withAlpha(80) : Colors.grey.withAlpha(50)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => FingerprintEnrollmentDialog(
+                                  student: s,
+                                  isReEnrollment: s.hasFingerprint,
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          // 3. زر الحذف (Delete Button)
                           ElevatedButton.icon(
                             icon: const Icon(Icons.delete_outline_rounded, size: 14),
                             label: const Text('حذف', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.danger,
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               elevation: 0,
                             ),
                             onPressed: () => _confirmDeleteStudent(context, s, repo),
                           ),
                           const SizedBox(width: 6),
+                          // 4. زر البطاقة (Student Card Dialog)
                           IconButton(
-                            icon: const Icon(Icons.qr_code_2_rounded, color: Colors.teal),
-                            tooltip: 'عرض بطاقة الطالب',
+                            icon: const Icon(Icons.badge_rounded, color: Colors.teal),
+                            tooltip: 'عرض وطباعة بطاقة الطالب',
                             onPressed: () {
                               showDialog(
                                 context: context,
@@ -666,13 +695,13 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
               // 1. زر التعديل (Edit Button)
               Expanded(
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.edit_rounded, size: 16),
+                  icon: const Icon(Icons.edit_rounded, size: 15),
                   label: const Text(
                     'تعديل',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -686,37 +715,57 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
 
-              // 2. زر الحذف (Delete Button with Alert)
+              // 2. زر البصمة (Fingerprint Enrollment Button)
               Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                  label: const Text(
-                    'حذف',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                child: OutlinedButton.icon(
+                  icon: Icon(Icons.fingerprint_rounded, size: 16, color: student.hasFingerprint ? AppColors.turquoise : Colors.grey),
+                  label: Text(
+                    student.hasFingerprint ? 'بصمة مسجلة' : 'تسجيل بصمة',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: student.hasFingerprint ? AppColors.turquoise : Colors.grey.shade700,
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    backgroundColor: AppColors.danger,
-                    foregroundColor: Colors.white,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    side: BorderSide(color: student.hasFingerprint ? AppColors.turquoise.withAlpha(80) : Colors.grey.withAlpha(60)),
+                    backgroundColor: student.hasFingerprint ? AppColors.turquoise.withAlpha(12) : null,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
                   ),
-                  onPressed: () => _confirmDeleteStudent(context, student, repo),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => FingerprintEnrollmentDialog(
+                        student: student,
+                        isReEnrollment: student.hasFingerprint,
+                      ),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
 
-              // 3. QR Card Button
-              OutlinedButton.icon(
-                icon: const Icon(Icons.qr_code_2_rounded, size: 16, color: Colors.teal),
-                label: const Text(
-                  'البطاقة',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal),
+              // 3. زر الحذف (Delete Button with Alert)
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  elevation: 0,
                 ),
+                onPressed: () => _confirmDeleteStudent(context, student, repo),
+                child: const Icon(Icons.delete_outline_rounded, size: 18),
+              ),
+              const SizedBox(width: 6),
+
+              // 4. Student Card Button
+              OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
                   side: BorderSide(color: Colors.teal.withAlpha(80)),
                   backgroundColor: Colors.teal.withAlpha(15),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -727,6 +776,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                     builder: (_) => StudentCardDialog(student: student),
                   );
                 },
+                child: const Icon(Icons.badge_rounded, size: 18, color: Colors.teal),
               ),
             ],
           ),

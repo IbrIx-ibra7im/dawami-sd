@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/academic_models.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
+import '../fingerprint/fingerprint_enrollment_dialog.dart';
 
 class AddEditStudentDialog extends StatefulWidget {
   final Student? student;
@@ -22,6 +23,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   late TextEditingController _fpIdController;
+  late TextEditingController _photoController;
 
   int _selectedCollegeId = 1;
   int _selectedDepartmentId = 1;
@@ -39,6 +41,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
     _phoneController = TextEditingController(text: s?.phone ?? '09');
     _emailController = TextEditingController(text: s?.email ?? '');
     _fpIdController = TextEditingController(text: s?.fingerprintId ?? '');
+    _photoController = TextEditingController(text: s?.photoUrl ?? '');
 
     if (s != null) {
       _selectedCollegeId = s.collegeId;
@@ -56,6 +59,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
     _phoneController.dispose();
     _emailController.dispose();
     _fpIdController.dispose();
+    _photoController.dispose();
     super.dispose();
   }
 
@@ -67,6 +71,25 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
     try {
       final repo = context.read<AppRepository>();
       final uniId = _idController.text.trim();
+      final cleanUniId = uniId.toLowerCase();
+
+      // 1. التحقق من فرادة الرقم الجامعي (Unique student number validation)
+      final isDuplicateUniId = repo.students.any((s) =>
+          s.id != widget.student?.id &&
+          (s.universityId.toLowerCase() == cleanUniId || s.studentNumber.toLowerCase() == cleanUniId));
+
+      if (isDuplicateUniId) {
+        throw Exception('الرقم الجامعي "$uniId" مسجل مسبقاً لطالب آخر. يجب أن يكون الرقم الجامعي فريداً.');
+      }
+
+      // 2. التحقق من فرادة معرف البصمة إن وجد
+      final fpId = _fpIdController.text.trim();
+      if (fpId.isNotEmpty) {
+        final isDuplicateFp = await repo.isFingerprintDuplicate(fpId, excludeStudentId: widget.student?.id);
+        if (isDuplicateFp) {
+          throw Exception('معرف البصمة "$fpId" مسجل مسبقاً لطالب آخر. لا يمكن تكرار البصمة.');
+        }
+      }
 
       String collegeName = 'كلية علوم الحاسوب والتنمية البشرية';
       for (final c in repo.colleges) {
@@ -104,7 +127,8 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         semesterId: _selectedSemesterId,
         status: _status,
         qrCode: 'DAWAMI:STUDENT:$uniId',
-        fingerprintId: _fpIdController.text.trim().isNotEmpty ? _fpIdController.text.trim() : null,
+        fingerprintId: fpId.isNotEmpty ? fpId : null,
+        photoUrl: _photoController.text.trim().isNotEmpty ? _photoController.text.trim() : null,
         collegeName: collegeName,
         departmentName: deptName,
         levelName: levelName,
@@ -295,11 +319,74 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _fpIdController,
+                        decoration: const InputDecoration(
+                          labelText: 'معرّف البصمة في الجهاز (مثال: FP-1045)',
+                          prefixIcon: Icon(Icons.fingerprint),
+                        ),
+                      ),
+                    ),
+                    if (widget.student != null) ...[
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.touch_app, size: 16),
+                        label: const Text('تسجيل البصمة', style: TextStyle(fontSize: 12)),
+                        onPressed: () async {
+                          final repo = context.read<AppRepository>();
+                          await showDialog(
+                            context: context,
+                            builder: (_) => FingerprintEnrollmentDialog(
+                              student: widget.student!,
+                              isReEnrollment: widget.student!.hasFingerprint,
+                            ),
+                          );
+                          if (!mounted) return;
+                          final updated = repo.students.firstWhere(
+                            (s) => s.id == widget.student!.id,
+                            orElse: () => widget.student!,
+                          );
+                          if (updated.fingerprintId != null) {
+                            setState(() {
+                              _fpIdController.text = updated.fingerprintId!;
+                            });
+                          }
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 12),
                 TextFormField(
-                  controller: _fpIdController,
+                  controller: _photoController,
                   decoration: const InputDecoration(
-                    labelText: 'معرّف البصمة في الجهاز (مثال: FP-1045)',
-                    prefixIcon: Icon(Icons.fingerprint),
+                    labelText: 'رابط صورة الطالب (اختياري)',
+                    prefixIcon: Icon(Icons.photo_camera_outlined),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                // Generated Barcode / QR Code preview info
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withAlpha(12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primaryBlue.withAlpha(30)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.qr_code_2_rounded, color: AppColors.primaryBlue, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'معرّف الباركود الفريد: ${_idController.text.trim().isEmpty ? "يتم توليده تلقائياً من الرقم الجامعي" : "DAWAMI:STUDENT:${_idController.text.trim()}"}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.darkBlue, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

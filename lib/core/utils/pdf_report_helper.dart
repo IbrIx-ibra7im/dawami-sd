@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../data/models/attendance_record.dart';
+import '../../data/models/student.dart';
 
 class PdfReportHelper {
   static Future<Uint8List> generateAttendanceReport({
@@ -118,6 +119,118 @@ class PdfReportHelper {
             children: [
               pw.Text('تاريخ الطباعة: ${DateTime.now().toString().substring(0, 16)}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
               pw.Text('الصفحة ${context.pageNumber} من ${context.pagesCount}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  /// توليد وطباعة بطاقة الطالب الرسمية بدقة عالية متضمنة الباركود ورمز QR
+  static Future<Uint8List> generateStudentCardPdf({
+    required Student student,
+    String universityName = 'جامعة دنقلا - كلية علوم الحاسوب والتنمية البشرية',
+  }) async {
+    final pdf = pw.Document();
+
+    pw.Font font;
+    pw.Font fontBold;
+    try {
+      font = await PdfGoogleFonts.cairoRegular();
+      fontBold = await PdfGoogleFonts.cairoBold();
+    } catch (_) {
+      font = pw.Font.helvetica();
+      fontBold = pw.Font.helveticaBold();
+    }
+
+    final codeData = student.qrCode.isNotEmpty ? student.qrCode : 'DAWAMI:STUDENT:${student.universityId}';
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: const PdfPageFormat(85.6 * PdfPageFormat.mm, 53.98 * PdfPageFormat.mm, marginAll: 3 * PdfPageFormat.mm),
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: font, bold: fontBold),
+        build: (context) => pw.Container(
+          padding: const pw.EdgeInsets.all(6),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.blue900, width: 1.5),
+            borderRadius: pw.BorderRadius.circular(6),
+            color: PdfColors.white,
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              // Header
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                decoration: const pw.BoxDecoration(
+                  color: PdfColors.blue900,
+                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(4)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('بطاقة طالب جامعية', style: pw.TextStyle(font: fontBold, color: PdfColors.white, fontSize: 8)),
+                    pw.Text(universityName, style: pw.TextStyle(font: fontBold, color: PdfColors.white, fontSize: 7)),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 3),
+
+              // Student Body Info & QR Code
+              pw.Expanded(
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    // QR Code
+                    pw.Container(
+                      width: 50,
+                      height: 50,
+                      padding: const pw.EdgeInsets.all(2),
+                      decoration: pw.BoxDecoration(
+                        border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
+                        borderRadius: pw.BorderRadius.circular(4),
+                      ),
+                      child: pw.BarcodeWidget(
+                        barcode: pw.Barcode.qrCode(),
+                        data: codeData,
+                      ),
+                    ),
+                    pw.SizedBox(width: 8),
+
+                    // Info Details
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text(student.fullName, style: pw.TextStyle(font: fontBold, fontSize: 9, color: PdfColors.blue900), maxLines: 1),
+                          pw.SizedBox(height: 2),
+                          pw.Text('الرقم الجامعي: ${student.universityId}', style: pw.TextStyle(font: fontBold, fontSize: 8, color: PdfColors.black)),
+                          pw.Text('القسم: ${student.departmentName ?? student.department}', style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey800)),
+                          pw.Text('المستوى: ${student.levelName ?? student.academicLevel}', style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey800)),
+                          pw.Text('الحالة: ${student.status}', style: pw.TextStyle(font: fontBold, fontSize: 7, color: PdfColors.green800)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bottom Barcode 128
+              pw.Container(
+                height: 16,
+                padding: const pw.EdgeInsets.symmetric(horizontal: 10),
+                child: pw.BarcodeWidget(
+                  barcode: pw.Barcode.code128(),
+                  data: student.universityId,
+                  drawText: true,
+                  textStyle: const pw.TextStyle(fontSize: 6),
+                ),
+              ),
             ],
           ),
         ),

@@ -137,7 +137,6 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
 
     final matchedStudent = await fpProvider.triggerFingerprintScan(
       forcedStudent: specificStudent,
-      preferDeviceHardware: useDeviceBiometrics,
     );
 
     if (matchedStudent != null) {
@@ -241,6 +240,73 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     if (scannedCode != null && scannedCode.trim().isNotEmpty) {
       _scanBarcode(scannedCode.trim());
     }
+  }
+
+  void _showHardwareSpecsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.fingerprint_rounded, color: AppColors.primaryBlue),
+            SizedBox(width: 8),
+            Text(
+              'مواصفات قارئ البصمة والـ SDK',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'تنبيه فني هام:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                FingerprintProvider.mobileBiometricNotice,
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+              Divider(height: 24),
+              Text(
+                'الأجهزة المتوافقة المعتمدة:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryBlue, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                FingerprintProvider.requiredDeviceSpecs,
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+              Divider(height: 24),
+              Text(
+                'حزم التطوير (SDK) وقوالب البصمة:',
+                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryBlue, fontSize: 14),
+              ),
+              SizedBox(height: 4),
+              Text(
+                FingerprintProvider.requiredSdkSpecs,
+                style: TextStyle(fontSize: 13, height: 1.4),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('حسناً'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -382,6 +448,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   },
                 ),
               ),
+            IconButton(
+              icon: const Icon(Icons.info_outline_rounded, color: Colors.white),
+              tooltip: 'مواصفات قارئ البصمة البيومتري والـ SDK',
+              onPressed: () => _showHardwareSpecsDialog(context),
+            ),
             IconButton(
               icon: const Icon(Icons.settings_outlined, color: Colors.white),
               tooltip: 'إعدادات الحضور والانصراف وقواعد البيانات',
