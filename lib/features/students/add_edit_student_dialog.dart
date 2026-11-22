@@ -119,7 +119,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         id: widget.student?.id,
         universityId: uniId,
         fullName: _nameController.text.trim(),
-        phone: _phoneController.text.trim(),
+        phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : '0000000000',
         email: _emailController.text.trim(),
         collegeId: _selectedCollegeId,
         departmentId: _selectedDepartmentId,

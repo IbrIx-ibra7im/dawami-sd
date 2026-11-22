@@ -8,6 +8,7 @@ import '../../data/models/attendance_record.dart';
 import '../../data/remote/supabase_service.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
+import '../../widgets/sync_status_card.dart';
 import '../settings/settings_screen.dart';
 import 'manual_attendance_dialog.dart';
 import 'audit_logs_screen.dart';
@@ -74,6 +75,7 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
       ),
       body: Column(
         children: [
+          const SyncStatusCard(compact: true),
           // Current Lecture Info Banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1178,6 +1180,8 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
+
+                        const SyncStatusCard(compact: false, margin: EdgeInsets.only(bottom: 12)),
 
                         // Card: Primary Database - Supabase
                         Container(

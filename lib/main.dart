@@ -6,6 +6,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import 'app.dart';
 import 'core/network/connectivity_service.dart';
+import 'core/services/sync_service.dart';
 import 'core/sync/sync_engine.dart';
 import 'data/local/hive_helper.dart';
 import 'data/remote/supabase_service.dart';
@@ -50,6 +51,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => SyncEngine()),
         ChangeNotifierProvider(create: (_) => ConnectivityService()),
         ChangeNotifierProvider(create: (_) => FingerprintProvider()),
+        ChangeNotifierProvider.value(value: SyncService.instance),
       ],
       child: const DawamiApp(),
     ),

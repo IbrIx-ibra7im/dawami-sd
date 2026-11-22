@@ -114,20 +114,31 @@ CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON students(barcode_id);
 CREATE INDEX IF NOT EXISTS idx_students_fingerprint_id ON students(fingerprint_id);
 CREATE INDEX IF NOT EXISTS idx_students_full_name ON students(full_name);
 
--- 10. جدول الحضور (attendance) - مع منع التكرار Idempotent
+-- 10. جدول الحضور (attendance) - مع منع التكرار Idempotent ومطابقة مواصفات المزامنة
 CREATE TABLE IF NOT EXISTS attendance (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id INT NOT NULL REFERENCES students(id) ON DELETE CASCADE,
-    session_id INT NOT NULL REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+    student_number VARCHAR(50),
+    university_id VARCHAR(50), -- متوافق مع الحقل السابق
+    student_name VARCHAR(255),
+    student_id INT REFERENCES students(id) ON DELETE CASCADE,
+    lecture_id INT REFERENCES lectures(id) ON DELETE CASCADE,
+    session_id INT REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+    attendance_date DATE DEFAULT CURRENT_DATE,
+    attendance_time TIME DEFAULT CURRENT_TIME,
     check_in TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     check_out TIMESTAMPTZ,
-    method VARCHAR(50) NOT NULL, -- 'qr', 'fingerprint', 'manual'
+    method VARCHAR(50) NOT NULL, -- 'fingerprint', 'barcode', 'qr', 'manual'
     status VARCHAR(50) NOT NULL DEFAULT 'حاضر', -- 'حاضر', 'متأخر', 'غائب', 'انصراف'
+    sync_status VARCHAR(50) NOT NULL DEFAULT 'مزامنة',
     device_id VARCHAR(100) NOT NULL DEFAULT 'ZK-F18',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_student_session UNIQUE (student_id, session_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_attendance_student_number ON attendance(student_number);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(attendance_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_sync_status ON attendance(sync_status);
 
 -- 11. جدول الملفات الشخصية والمستخدمين (profiles)
 CREATE TABLE IF NOT EXISTS profiles (

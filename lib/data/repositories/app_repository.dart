@@ -10,6 +10,7 @@ import '../../data/models/lecture.dart';
 import '../../data/models/sync_and_auth_models.dart';
 import '../../data/models/biometric_models.dart';
 import '../../core/permissions/role_manager.dart';
+import '../../core/services/sync_service.dart';
 
 class AppRepository extends ChangeNotifier {
   final DatabaseHelper _db = DatabaseHelper.instance;
@@ -528,6 +529,9 @@ class AppRepository extends ChangeNotifier {
           status: status,
           deviceId: _deviceName,
           checkIn: nowTime,
+          studentNumber: student.universityId,
+          studentName: student.fullName,
+          lectureId: _activeSession!.id,
         );
         _isPrimaryConnected = true;
         await _hive.markRecordAsSynced('attendance', recordId);
@@ -537,6 +541,7 @@ class AppRepository extends ChangeNotifier {
     }
 
     _triggerAutoSync();
+    SyncService.instance.refreshPendingCount();
 
     await refreshAttendance();
     return _todayAttendance.firstWhere(

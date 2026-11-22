@@ -14,6 +14,7 @@ import '../../core/services/update_service.dart';
 import '../../data/models/update_info.dart';
 import '../settings/widgets/update_dialog.dart';
 import '../attendance/attendance_list_screen.dart';
+import '../../widgets/sync_status_card.dart';
 
 import '../../data/models/biometric_models.dart';
 
@@ -514,6 +515,8 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     ],
                   ),
                 ),
+
+              const SyncStatusCard(compact: true),
 
               // 2. Attendance Mode Switcher (يظهر فقط في حال تفعيل كلتا الوسيلتين معاً بواسطة الإدارة)
               if (fpEnabled && bcEnabled)

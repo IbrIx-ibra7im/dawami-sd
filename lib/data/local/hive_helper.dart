@@ -759,6 +759,7 @@ class HiveHelper {
             final map = Map<String, dynamic>.from(sRaw);
             await client.from('students').upsert({
               'university_id': map['university_id'],
+              'student_number': map['student_number'] ?? map['university_id'],
               'full_name': map['full_name'],
               'phone': map['phone'] ?? '',
               'email': map['email'] ?? '',
@@ -768,7 +769,9 @@ class HiveHelper {
               'semester_id': map['semester_id'] ?? 1,
               'status': map['status'] ?? 'نشط',
               'qr_code': map['qr_code'] ?? 'DAWAMI:STUDENT:${map['university_id']}',
+              'barcode_id': map['barcode_id'] ?? map['qr_code'] ?? 'DAWAMI:STUDENT:${map['university_id']}',
               'fingerprint_id': map['fingerprint_id'],
+              'fingerprint_registered': (map['fingerprint_id'] != null && map['fingerprint_id'].toString().isNotEmpty),
             }, onConflict: 'university_id');
             syncedCount++;
           }
@@ -783,16 +786,28 @@ class HiveHelper {
           final aRaw = _attendanceBox.get(key);
           if (aRaw != null) {
             final map = Map<String, dynamic>.from(aRaw);
+            final checkInStr = map['check_in']?.toString() ?? '';
+            final dateStr = checkInStr.length >= 10 ? checkInStr.substring(0, 10) : null;
+            final timeStr = checkInStr.length >= 16 ? checkInStr.substring(11, 16) : null;
             await client.from('attendance').upsert({
               'id': map['id'],
               'student_id': map['student_id'],
+              'student_number': map['student_number'] ?? map['university_id'],
+              'university_id': map['university_id'] ?? map['student_number'],
+              'student_name': map['student_name'],
               'session_id': map['session_id'] ?? 1,
+              'lecture_id': map['lecture_id'] ?? map['session_id'] ?? 1,
               'check_in': map['check_in'],
               'check_out': map['check_out'],
+              'attendance_date': map['attendance_date'] ?? dateStr,
+              'attendance_time': map['attendance_time'] ?? timeStr,
               'method': map['method'] ?? 'qr',
               'status': map['status'] ?? 'حاضر',
+              'sync_status': 'مزامنة',
               'device_id': map['device_id'] ?? 'ZK-F18',
             }, onConflict: 'id');
+            map['is_synced'] = 1;
+            await _attendanceBox.put(key, map);
             syncedCount++;
           }
         }

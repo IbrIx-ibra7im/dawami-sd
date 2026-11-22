@@ -291,8 +291,10 @@ END \$\$;
         payload.remove('student_name');
         // DO NOT remove university_id! It is a required core column in Supabase students table.
       } else if (item.tableName == 'attendance') {
-        payload.remove('student_name');
-        payload.remove('university_id');
+        if (payload['student_number'] == null && payload['university_id'] != null) {
+          payload['student_number'] = payload['university_id'];
+        }
+        payload['sync_status'] = 'مزامنة';
         payload.remove('lecture_name');
         payload.remove('classroom_name');
         payload.remove('is_synced');
@@ -517,9 +519,16 @@ END \$\$;
     required String deviceId,
     required String checkIn,
     String? checkOut,
+    String? studentNumber,
+    String? studentName,
+    int? lectureId,
+    String? attendanceDate,
+    String? attendanceTime,
   }) async {
     if (!_isConfigured || _client == null) return false;
     try {
+      final date = attendanceDate ?? (checkIn.length >= 10 ? checkIn.substring(0, 10) : null);
+      final time = attendanceTime ?? (checkIn.length >= 16 ? checkIn.substring(11, 16) : null);
       final payload = <String, dynamic>{
         'id': id,
         'student_id': studentId,
@@ -528,7 +537,23 @@ END \$\$;
         'status': status,
         'device_id': deviceId,
         'check_in': checkIn,
+        'sync_status': 'مزامنة',
       };
+      if (studentNumber != null && studentNumber.isNotEmpty) {
+        payload['student_number'] = studentNumber;
+      }
+      if (studentName != null && studentName.isNotEmpty) {
+        payload['student_name'] = studentName;
+      }
+      if (lectureId != null) {
+        payload['lecture_id'] = lectureId;
+      }
+      if (date != null) {
+        payload['attendance_date'] = date;
+      }
+      if (time != null) {
+        payload['attendance_time'] = time;
+      }
       if (checkOut != null) {
         payload['check_out'] = checkOut;
       }

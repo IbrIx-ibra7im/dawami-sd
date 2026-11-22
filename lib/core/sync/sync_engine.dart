@@ -5,6 +5,7 @@ import '../../data/local/database_helper.dart';
 import '../../data/local/hive_helper.dart';
 import '../../data/remote/supabase_service.dart';
 import '../../data/models/sync_and_auth_models.dart';
+import '../services/sync_service.dart';
 
 enum SyncMethod {
   localSafe,      // المزامنة المحلية الآمنة (فورية وبدون أخطاء سحابية)
@@ -280,6 +281,7 @@ class SyncEngine extends ChangeNotifier {
       _lastSyncTime = '${hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} $period';
 
       await refreshQueue();
+      SyncService.instance.refreshPendingCount();
       return true;
     } finally {
       _isSyncing = false;
