@@ -72,12 +72,26 @@ ALTER TABLE IF EXISTS public.student_fingerprints DISABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.student_enrollments DISABLE ROW LEVEL SECURITY;
 
 -- 3. ترقية وتوافق حقول جدول الطلاب لمواصفات تطبيق دوامي
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS student_number VARCHAR(50);
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS college VARCHAR(255);
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS department VARCHAR(255);
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS academic_level VARCHAR(100);
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS barcode_id VARCHAR(100);
-ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS fingerprint_registered BOOLEAN DEFAULT FALSE;
+CREATE TABLE IF NOT EXISTS public.students (
+  id uuid not null default gen_random_uuid (),
+  student_number character varying(50) not null,
+  full_name character varying(255) not null,
+  college character varying(255) not null default 'كلية علوم الحاسوب والتنمية البشرية'::character varying,
+  department character varying(255) not null default 'علوم الحاسوب'::character varying,
+  academic_level character varying(100) not null default 'المستوى الأول'::character varying,
+  phone character varying(30) not null,
+  status character varying(50) not null default 'نشط'::character varying,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  university_id character varying(50) null,
+  barcode_id character varying(100) null,
+  fingerprint_registered boolean null default false,
+  constraint students_pkey primary key (id),
+  constraint students_student_number_key unique (student_number)
+);
+
+create unique INDEX IF not exists idx_students_university_id_unique on public.students using btree (university_id)
+where (university_id is not null);
 
 -- 4. ترقية وتوافق حقول جدول الحضور لمواصفات تطبيق دوامي
 ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS student_number VARCHAR(50);
@@ -208,7 +222,7 @@ END \$\$;
     final stopwatch = Stopwatch()..start();
     try {
       // Query students table to verify read permissions
-      await _client!.from('students').select('university_id').limit(1);
+      await _client!.from('students').select('student_number').limit(1);
       stopwatch.stop();
 
       return SupabaseTestResult(
@@ -279,6 +293,38 @@ END \$\$;
     }
   }
 
+  /// تنسيق حمولة الطالب لتطابق حصرياً جدول Supabase المعتمد (public.students)
+  static Map<String, dynamic> formatStudentPayload(dynamic source) {
+    if (source is Student) {
+      return source.toSupabaseMap();
+    }
+    final map = Map<String, dynamic>.from(source as Map);
+    final uniId = (map['student_number'] ?? map['university_id'])?.toString().trim() ?? '';
+    final barcode = (map['barcode_id'] ?? map['qr_code'])?.toString().trim() ?? '';
+    final hasFp = map['fingerprint_registered'] == true ||
+        map['fingerprint_registered'] == 1 ||
+        map['fingerprint_registered'] == 'true' ||
+        (map['fingerprint_id'] != null && map['fingerprint_id'].toString().isNotEmpty);
+
+    final payload = <String, dynamic>{
+      'student_number': uniId,
+      'full_name': map['full_name']?.toString() ?? '',
+      'college': map['college']?.toString() ?? map['college_name']?.toString() ?? 'كلية علوم الحاسوب والتنمية البشرية',
+      'department': map['department']?.toString() ?? map['department_name']?.toString() ?? 'علوم الحاسوب',
+      'academic_level': map['academic_level']?.toString() ?? map['level_name']?.toString() ?? 'المستوى الأول',
+      'phone': (map['phone']?.toString().trim().isNotEmpty == true) ? map['phone'].toString().trim() : '0000000000',
+      'status': map['status']?.toString() ?? 'نشط',
+      'fingerprint_registered': hasFp,
+    };
+    if (uniId.isNotEmpty) {
+      payload['university_id'] = uniId;
+    }
+    if (barcode.isNotEmpty) {
+      payload['barcode_id'] = barcode;
+    }
+    return payload;
+  }
+
   // Sync Queue Operation Handler
   Future<bool> syncOperation(SyncQueueItem item) async {
     if (!_isConfigured || _client == null) {
@@ -291,12 +337,18 @@ END \$\$;
 
       // Clean local helper / join fields based on target table
       if (item.tableName == 'students') {
-        payload.remove('college_name');
-        payload.remove('department_name');
-        payload.remove('level_name');
-        payload.remove('is_synced');
-        payload.remove('student_name');
-        // DO NOT remove university_id! It is a required core column in Supabase students table.
+        final studentPayload = formatStudentPayload(payload);
+        switch (item.operation.toUpperCase()) {
+          case 'INSERT':
+          case 'UPDATE':
+            await _client!.from('students').upsert(studentPayload, onConflict: 'student_number');
+            break;
+          case 'DELETE':
+            final studentNum = studentPayload['student_number'] ?? payload['university_id'] ?? item.recordId;
+            await _client!.from('students').delete().eq('student_number', studentNum);
+            break;
+        }
+        return true;
       } else if (item.tableName == 'attendance') {
         if (payload['student_number'] == null && payload['university_id'] != null) {
           payload['student_number'] = payload['university_id'];
@@ -318,11 +370,7 @@ END \$\$;
       switch (item.operation.toUpperCase()) {
         case 'INSERT':
         case 'UPDATE':
-          if (item.tableName == 'students') {
-            await _client!.from('students').upsert(payload, onConflict: 'university_id');
-          } else {
-            await _client!.from(item.tableName).upsert(payload);
-          }
+          await _client!.from(item.tableName).upsert(payload);
           break;
         case 'DELETE':
           final id = payload['id'] ?? item.recordId;
@@ -342,16 +390,8 @@ END \$\$;
   Future<bool> batchUpsertStudents(List<Map<String, dynamic>> students) async {
     if (!_isConfigured || _client == null || students.isEmpty) return false;
     try {
-      final cleanList = students.map((s) {
-        final m = Map<String, dynamic>.from(s);
-        m.remove('college_name');
-        m.remove('department_name');
-        m.remove('level_name');
-        m.remove('is_synced');
-        m.remove('student_name');
-        return m;
-      }).toList();
-      await _client!.from('students').upsert(cleanList, onConflict: 'university_id');
+      final cleanList = students.map((s) => formatStudentPayload(s)).toList();
+      await _client!.from('students').upsert(cleanList, onConflict: 'student_number');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase batchUpsertStudents notice: $e');
@@ -368,13 +408,10 @@ END \$\$;
     if (!_isConfigured || _client == null) return [];
     try {
       var builder = _client!.from('students').select();
-      if (collegeId != null) {
-        builder = builder.eq('college_id', collegeId);
-      }
       if (status != null && status != 'الكل') {
         builder = builder.eq('status', status);
       }
-      final response = await builder.order('id', ascending: false);
+      final response = await builder.order('created_at', ascending: false);
       final list = <Student>[];
       for (final item in response) {
         final map = Map<String, dynamic>.from(item);
@@ -399,16 +436,8 @@ END \$\$;
   Future<Student?> insertStudent(Student student) async {
     if (!_isConfigured || _client == null) return null;
     try {
-      final payload = student.toMap();
-      payload.remove('college_name');
-      payload.remove('department_name');
-      payload.remove('level_name');
-      payload.remove('is_synced');
-      payload.remove('student_name');
-      if (payload['id'] == null) {
-        payload.remove('id');
-      }
-      final response = await _client!.from('students').upsert(payload, onConflict: 'university_id').select().maybeSingle();
+      final payload = student.toSupabaseMap();
+      final response = await _client!.from('students').upsert(payload, onConflict: 'student_number').select().maybeSingle();
       if (response != null) {
         return Student.fromMap(Map<String, dynamic>.from(response));
       }
@@ -423,17 +452,9 @@ END \$\$;
   Future<bool> updateStudent(Student student) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      final payload = student.toMap();
-      payload.remove('college_name');
-      payload.remove('department_name');
-      payload.remove('level_name');
-      payload.remove('is_synced');
-      payload.remove('student_name');
-      if (student.id != null) {
-        await _client!.from('students').update(payload).eq('id', student.id!);
-      } else {
-        await _client!.from('students').update(payload).eq('university_id', student.universityId);
-      }
+      final payload = student.toSupabaseMap();
+      final studentNum = student.universityId.isNotEmpty ? student.universityId : student.studentNumber;
+      await _client!.from('students').update(payload).eq('student_number', studentNum);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase updateStudent error: $e');
@@ -445,10 +466,8 @@ END \$\$;
   Future<bool> deleteStudent(int studentId, [String? universityId]) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      if (studentId > 0) {
-        await _client!.from('students').delete().eq('id', studentId);
-      } else if (universityId != null && universityId.isNotEmpty) {
-        await _client!.from('students').delete().eq('university_id', universityId);
+      if (universityId != null && universityId.isNotEmpty) {
+        await _client!.from('students').delete().eq('student_number', universityId);
       }
       return true;
     } catch (e) {

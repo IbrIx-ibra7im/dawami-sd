@@ -56,40 +56,32 @@ CREATE TABLE IF NOT EXISTS attendance_sessions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 7. جدول الطلاب (students) بمواصفات تطبيق دوامي المحدثة
-CREATE TABLE IF NOT EXISTS students (
-    id SERIAL PRIMARY KEY,
-    uuid UUID DEFAULT uuid_generate_v4() UNIQUE,
-    student_number VARCHAR(50) UNIQUE NOT NULL,
-    university_id VARCHAR(50) UNIQUE, -- متوافق مع الحقل السابق
-    full_name VARCHAR(255) NOT NULL,
-    college VARCHAR(255) NOT NULL DEFAULT 'كلية علوم الحاسوب والتنمية البشرية',
-    department VARCHAR(255) NOT NULL DEFAULT 'علوم الحاسوب',
-    academic_level VARCHAR(100) NOT NULL DEFAULT 'المستوى الأول',
-    college_id INT REFERENCES colleges(id),
-    department_id INT REFERENCES departments(id),
-    level_id INT REFERENCES academic_levels(id),
-    semester_id INT REFERENCES semesters(id),
-    phone VARCHAR(30) NOT NULL DEFAULT '0000000000',
-    email VARCHAR(255),
-    photo_url TEXT,
-    barcode_id VARCHAR(100) UNIQUE,
-    qr_code TEXT, -- متوافق مع الحقل السابق
-    fingerprint_id VARCHAR(100),
-    fingerprint_registered BOOLEAN NOT NULL DEFAULT FALSE,
-    fingerprint_status VARCHAR(50) NOT NULL DEFAULT 'غير مسجلة',
-    fingerprint_quality INT,
-    fingerprint_enrolled_at TIMESTAMPTZ,
-    status VARCHAR(50) NOT NULL DEFAULT 'نشط', -- 'نشط', 'متوقف', 'متخرج'
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+-- 7. جدول الطلاب (students) بمواصفات قاعدة بيانات Supabase الدقيقة
+CREATE TABLE IF NOT EXISTS public.students (
+  id uuid not null default gen_random_uuid (),
+  student_number character varying(50) not null,
+  full_name character varying(255) not null,
+  college character varying(255) not null default 'كلية علوم الحاسوب والتنمية البشرية'::character varying,
+  department character varying(255) not null default 'علوم الحاسوب'::character varying,
+  academic_level character varying(100) not null default 'المستوى الأول'::character varying,
+  phone character varying(30) not null,
+  status character varying(50) not null default 'نشط'::character varying,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  university_id character varying(50) null,
+  barcode_id character varying(100) null,
+  fingerprint_registered boolean null default false,
+  constraint students_pkey primary key (id),
+  constraint students_student_number_key unique (student_number)
+) TABLESPACE pg_default;
 
--- فهارس فريدة وسريعة للبحث والتحقق
-CREATE INDEX IF NOT EXISTS idx_students_student_number ON students(student_number);
-CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON students(barcode_id);
-CREATE INDEX IF NOT EXISTS idx_students_fingerprint_id ON students(fingerprint_id);
-CREATE INDEX IF NOT EXISTS idx_students_full_name ON students(full_name);
+create unique INDEX IF not exists idx_students_university_id_unique on public.students using btree (university_id) TABLESPACE pg_default
+where
+  (university_id is not null);
+
+CREATE INDEX IF NOT EXISTS idx_students_student_number ON public.students(student_number);
+CREATE INDEX IF NOT EXISTS idx_students_barcode_id ON public.students(barcode_id);
+CREATE INDEX IF NOT EXISTS idx_students_full_name ON public.students(full_name);
 
 -- 8. جدول الحضور (attendance) - مع منع التكرار Idempotent ومطابقة مواصفات المزامنة
 CREATE TABLE IF NOT EXISTS attendance (

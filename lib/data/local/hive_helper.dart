@@ -751,28 +751,14 @@ class HiveHelper {
         }
       }
 
-      // 2. Upload local students in Hive to Supabase (Two-way push)
+      // 2. Upload local students in Hive to Supabase (Two-way push - public.students schema)
       try {
         for (final key in _studentsBox.keys) {
           final sRaw = _studentsBox.get(key);
           if (sRaw != null) {
             final map = Map<String, dynamic>.from(sRaw);
-            await client.from('students').upsert({
-              'university_id': map['university_id'],
-              'student_number': map['student_number'] ?? map['university_id'],
-              'full_name': map['full_name'],
-              'phone': map['phone'] ?? '',
-              'email': map['email'] ?? '',
-              'college_id': map['college_id'] ?? 1,
-              'department_id': map['department_id'] ?? 1,
-              'level_id': map['level_id'] ?? 1,
-              'semester_id': map['semester_id'] ?? 1,
-              'status': map['status'] ?? 'نشط',
-              'qr_code': map['qr_code'] ?? 'DAWAMI:STUDENT:${map['university_id']}',
-              'barcode_id': map['barcode_id'] ?? map['qr_code'] ?? 'DAWAMI:STUDENT:${map['university_id']}',
-              'fingerprint_id': map['fingerprint_id'],
-              'fingerprint_registered': (map['fingerprint_id'] != null && map['fingerprint_id'].toString().isNotEmpty),
-            }, onConflict: 'university_id');
+            final student = Student.fromMap(map);
+            await client.from('students').upsert(student.toSupabaseMap(), onConflict: 'student_number');
             syncedCount++;
           }
         }
@@ -820,9 +806,13 @@ class HiveHelper {
         final remoteStudents = await client.from('students').select();
         for (final r in remoteStudents) {
           final map = Map<String, dynamic>.from(r);
-          final id = map['id'] as int?;
-          if (id != null) {
-            await _studentsBox.put(id, map);
+          final student = Student.fromMap(map);
+          final uniId = student.universityId;
+          if (uniId.isNotEmpty) {
+            final existing = await getStudentByUniversityId(uniId);
+            final localId = existing?.id ?? (_studentsBox.length + 1);
+            final merged = student.copyWith(id: localId);
+            await _studentsBox.put(localId, merged.toMap());
           }
         }
       } catch (e) {

@@ -173,24 +173,15 @@ class SyncService extends ChangeNotifier {
         }
       }
 
-      // 4. مزامنة الطلاب المسجلين محلياً إلى Supabase
+      // 4. مزامنة الطلاب المسجلين محلياً إلى Supabase (مطابقة دقيقة لمخطط public.students)
       try {
         final localStudents = await _localStorage.getStudents();
         for (final s in localStudents) {
           try {
-            await client.from('students').upsert({
-              'university_id': s.universityId,
-              'student_number': s.universityId,
-              'full_name': s.fullName,
-              'phone': s.phone,
-              'email': s.email,
-              'qr_code': s.qrCode,
-              'barcode_id': s.qrCode,
-              'fingerprint_id': s.fingerprintId,
-              'fingerprint_registered': s.hasFingerprint,
-              'status': s.status,
-            }, onConflict: 'university_id');
-          } catch (_) {}
+            await client.from('students').upsert(s.toSupabaseMap(), onConflict: 'student_number');
+          } catch (e) {
+            if (kDebugMode) print('خطأ مزامنة الطالب (${s.universityId}): $e');
+          }
         }
       } catch (_) {}
 

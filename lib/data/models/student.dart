@@ -1,5 +1,6 @@
 class Student {
   final int? id;
+  final String? uuid; // المعرف الفريد في Supabase UUID
   final String universityId; // Unique university ID (e.g. 2022-1045)
   final String fullName;
   final String phone;
@@ -34,6 +35,7 @@ class Student {
 
   Student({
     this.id,
+    this.uuid,
     required this.universityId,
     required this.fullName,
     required this.phone,
@@ -107,6 +109,22 @@ class Student {
     };
   }
 
+  /// Map مطابقة حصرياً لأعمدة جدول Supabase المعتمد: public.students فقط
+  Map<String, dynamic> toSupabaseMap() {
+    return {
+      'student_number': universityId,
+      'full_name': fullName,
+      'college': collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية',
+      'department': departmentName ?? 'علوم الحاسوب',
+      'academic_level': levelName ?? 'المستوى الأول',
+      'phone': phone.trim().isNotEmpty ? phone.trim() : '0000000000',
+      'status': status,
+      'university_id': universityId,
+      'barcode_id': qrCode,
+      'fingerprint_registered': hasFingerprint,
+    };
+  }
+
   factory Student.fromMap(Map<dynamic, dynamic> map) {
     final fpId = map['fingerprint_id']?.toString();
     final explicitFpStatus = map['fingerprint_status']?.toString();
@@ -123,8 +141,21 @@ class Student {
     final dName = (map['department'] ?? map['department_name'])?.toString();
     final lName = (map['academic_level'] ?? map['level_name'])?.toString();
 
+    final rawId = map['id'];
+    int? parsedId;
+    String? parsedUuid;
+    if (rawId is num) {
+      parsedId = rawId.toInt();
+    } else if (rawId is String) {
+      parsedId = int.tryParse(rawId);
+      if (parsedId == null) {
+        parsedUuid = rawId;
+      }
+    }
+
     return Student(
-      id: (map['id'] as num?)?.toInt(),
+      id: parsedId,
+      uuid: parsedUuid ?? map['uuid']?.toString(),
       universityId: uniId,
       fullName: map['full_name']?.toString() ?? '',
       phone: map['phone']?.toString() ?? '',
@@ -159,6 +190,7 @@ class Student {
 
   Student copyWith({
     int? id,
+    String? uuid,
     String? universityId,
     String? fullName,
     String? phone,
@@ -180,6 +212,7 @@ class Student {
   }) {
     return Student(
       id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
       universityId: universityId ?? this.universityId,
       fullName: fullName ?? this.fullName,
       phone: phone ?? this.phone,

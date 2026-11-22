@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:my_app/data/models/attendance_record.dart';
+import 'package:my_app/data/models/student.dart';
 import 'package:my_app/data/local/hive_helper.dart';
 import 'package:my_app/core/services/local_storage_service.dart';
 import 'package:my_app/core/services/student_service.dart';
@@ -194,6 +195,92 @@ void main() {
       expect(fromNew.studentName, 'سارة خالد');
       expect(fromNew.method, 'barcode');
       expect(fromNew.isSynced, isTrue);
+    });
+  });
+
+  group('5. توافق نموذج Student بدقة مع جدول public.students في Supabase', () {
+    test('toSupabaseMap يصدر حصرياً الأعمدة المعتمدة في جدول public.students', () {
+      final student = Student(
+        id: 10,
+        uuid: '550e8400-e29b-41d4-a716-446655440000',
+        universityId: '2026-SUPA-001',
+        fullName: 'عمر مصطفى حسن',
+        phone: '0912345678',
+        email: 'omar@dongola.edu.sd',
+        collegeId: 1,
+        departmentId: 2,
+        levelId: 1,
+        semesterId: 1,
+        collegeName: 'كلية علوم الحاسوب والتنمية البشرية',
+        departmentName: 'تقنية المعلومات',
+        levelName: 'المستوى الأول',
+        qrCode: 'DAWAMI:STUDENT:2026-SUPA-001',
+        fingerprintId: 'FP-9988',
+      );
+
+      final map = student.toSupabaseMap();
+
+      // التحقق من الحقول المسموح بها في جدول public.students فقط
+      final allowedKeys = {
+        'student_number',
+        'full_name',
+        'college',
+        'department',
+        'academic_level',
+        'phone',
+        'status',
+        'university_id',
+        'barcode_id',
+        'fingerprint_registered',
+      };
+
+      expect(map.keys.toSet().difference(allowedKeys), isEmpty,
+          reason: 'يجب ألا يحتوي map على أي حقل غير موجود في جدول public.students');
+
+      expect(map['student_number'], '2026-SUPA-001');
+      expect(map['full_name'], 'عمر مصطفى حسن');
+      expect(map['college'], 'كلية علوم الحاسوب والتنمية البشرية');
+      expect(map['department'], 'تقنية المعلومات');
+      expect(map['academic_level'], 'المستوى الأول');
+      expect(map['phone'], '0912345678');
+      expect(map['status'], 'نشط');
+      expect(map['barcode_id'], 'DAWAMI:STUDENT:2026-SUPA-001');
+      expect(map['fingerprint_registered'], isTrue);
+
+      // التأكد الصارم من عدم وجود أعمدة تسبب أخطاء Postgres
+      expect(map.containsKey('college_id'), isFalse);
+      expect(map.containsKey('department_id'), isFalse);
+      expect(map.containsKey('level_id'), isFalse);
+      expect(map.containsKey('semester_id'), isFalse);
+      expect(map.containsKey('email'), isFalse);
+      expect(map.containsKey('qr_code'), isFalse);
+      expect(map.containsKey('fingerprint_id'), isFalse);
+      expect(map.containsKey('photo_url'), isFalse);
+    });
+
+    test('Student.fromMap يقرأ سجل Supabase مع UUID بمرونة', () {
+      final remoteRow = {
+        'id': 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        'student_number': '2026-9999',
+        'full_name': 'فاطمة الزهراء',
+        'college': 'كلية علوم الحاسوب والتنمية البشرية',
+        'department': 'علوم الحاسوب',
+        'academic_level': 'المستوى الأول',
+        'phone': '0922334455',
+        'status': 'نشط',
+        'university_id': '2026-9999',
+        'barcode_id': 'BARCODE-9999',
+        'fingerprint_registered': false,
+      };
+
+      final student = Student.fromMap(remoteRow);
+      expect(student.uuid, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+      expect(student.studentNumber, '2026-9999');
+      expect(student.universityId, '2026-9999');
+      expect(student.fullName, 'فاطمة الزهراء');
+      expect(student.phone, '0922334455');
+      expect(student.barcodeId, 'BARCODE-9999');
+      expect(student.fingerprintRegistered, isFalse);
     });
   });
 }
