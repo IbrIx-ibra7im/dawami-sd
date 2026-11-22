@@ -81,7 +81,16 @@ ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS academic_level VA
 ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS barcode_id VARCHAR(100);
 ALTER TABLE IF EXISTS public.students ADD COLUMN IF NOT EXISTS fingerprint_registered BOOLEAN DEFAULT FALSE;
 
--- 3. في حال كان نظام RLS مفروضاً إبقاؤه مفعلاً، يتم تطبيق سياسات السماح الشاملة التالية:
+-- 4. ترقية وتوافق حقول جدول الحضور لمواصفات تطبيق دوامي
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS student_number VARCHAR(50);
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS university_id VARCHAR(50);
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS student_name VARCHAR(255);
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS attendance_date DATE DEFAULT CURRENT_DATE;
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS attendance_time TIME DEFAULT CURRENT_TIME;
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS lecture_id INT;
+ALTER TABLE IF EXISTS public.attendance ADD COLUMN IF NOT EXISTS sync_status VARCHAR(50) DEFAULT 'مزامنة';
+
+-- 5. في حال كان نظام RLS مفروضاً إبقاؤه مفعلاً، يتم تطبيق سياسات السماح الشاملة التالية:
 DO \$\$
 DECLARE
     tbl text;
