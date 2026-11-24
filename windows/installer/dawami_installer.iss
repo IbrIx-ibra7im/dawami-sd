@@ -5,7 +5,7 @@
 #define MyAppNameEn "Dawami Attendance System"
 #define MyAppVersion "1.1.0"
 #define MyAppPublisher "Dawami Systems"
-#define MyAppExeName "dawami.exe"
+#define MyAppExeName "Dawami.exe"
 #define MyAppIcon "..\runner\resources\app_icon.ico"
 
 [Setup]
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\dist\Dawami_Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppIcon}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
