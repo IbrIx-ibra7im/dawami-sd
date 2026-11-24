@@ -75,7 +75,6 @@ class ExcelStudentImporter {
     int levelIdx = -1;
     int statusIdx = -1;
     int qrIdx = -1;
-    int fpIdx = -1;
 
     for (int i = 0; i < header.length; i++) {
       final h = header[i].toLowerCase().replaceAll('_', '').replaceAll(' ', '');
@@ -97,8 +96,6 @@ class ExcelStudentImporter {
         statusIdx = i;
       } else if (qrIdx == -1 && (h.contains('qr') || h.contains('باركود') || h.contains('barcode'))) {
         qrIdx = i;
-      } else if (fpIdx == -1 && (h.contains('بصمة') || h.contains('fingerprint'))) {
-        fpIdx = i;
       }
     }
 
@@ -132,7 +129,6 @@ class ExcelStudentImporter {
       final email = getCell(emailIdx).isNotEmpty ? getCell(emailIdx) : '$universityId@dawami.edu';
       final status = getCell(statusIdx).isNotEmpty ? getCell(statusIdx) : 'نشط';
       final qr = getCell(qrIdx).isNotEmpty ? getCell(qrIdx) : 'DAWAMI:STUDENT:$universityId';
-      final fp = getCell(fpIdx).isNotEmpty ? getCell(fpIdx) : 'FP-$universityId';
 
       final collegeName = getCell(collegeIdx).isNotEmpty ? getCell(collegeIdx) : 'كلية علوم الحاسوب والتنمية البشرية';
       final deptName = getCell(deptIdx).isNotEmpty ? getCell(deptIdx) : 'علوم الحاسوب';
@@ -150,7 +146,8 @@ class ExcelStudentImporter {
           semesterId: 1,
           status: status,
           qrCode: qr,
-          fingerprintId: fp,
+          // استيراد الملف لا يفعّل البصمة؛ يلزم التقاطها بقارئ معتمد.
+          fingerprintStatus: 'غير مسجلة',
           collegeName: collegeName,
           departmentName: deptName,
           levelName: levelName,

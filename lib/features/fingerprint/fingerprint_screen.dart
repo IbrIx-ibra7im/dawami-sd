@@ -130,10 +130,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
     }
   }
 
-  Future<void> _scanFingerprint({
-    Student? specificStudent,
-    bool useDeviceBiometrics = true,
-  }) async {
+  Future<void> _scanFingerprint() async {
     setState(() {
       _errorMessage = null;
       _attendedStudent = null;
@@ -143,15 +140,15 @@ class _FingerprintScreenState extends State<FingerprintScreen>
     final fpProvider = context.read<FingerprintProvider>();
     final repo = context.read<AppRepository>();
 
-    final matchedStudent = await fpProvider.triggerFingerprintScan(
-      forcedStudent: specificStudent,
-    );
+    final matchedStudent = await fpProvider.triggerFingerprintScan();
+    if (!mounted) return;
 
     if (matchedStudent != null) {
       try {
         final record = await repo.registerAttendance(
           student: matchedStudent,
           method: 'fingerprint',
+          verifiedFingerprintId: matchedStudent.fingerprintId,
         );
         // تسجيل عملية تحقق بيومتري ناجحة
         await repo.logBiometricVerification(
@@ -179,13 +176,16 @@ class _FingerprintScreenState extends State<FingerprintScreen>
           studentId: 0,
           method: 'fingerprint_1_N',
           status: 'failed',
-          reason: 'هذه البصمة غير مسجلة في النظام',
+          reason: fpProvider.statusMessage,
           timestamp: DateTime.now().toIso8601String(),
           deviceModel: fpProvider.selectedDeviceModel,
         ),
       );
       setState(() {
-        _errorMessage = 'هذه البصمة غير مسجلة في النظام';
+        _errorMessage = fpProvider.statusMessage ==
+                FingerprintProvider.notActivatedMessage
+            ? FingerprintProvider.notActivatedMessage
+            : fpProvider.statusMessage;
       });
     }
   }
@@ -810,7 +810,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
 
         // Big Fingerprint Touch Target
         GestureDetector(
-          onTap: () => _scanFingerprint(useDeviceBiometrics: true),
+          onTap: _scanFingerprint,
           child: ScaleTransition(
             scale: _scaleAnimation,
             child: Container(
@@ -882,7 +882,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () => _scanFingerprint(useDeviceBiometrics: true),
+              onPressed: _scanFingerprint,
             ),
             const SizedBox(width: 10),
             OutlinedButton.icon(
@@ -898,7 +898,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () => _scanFingerprint(useDeviceBiometrics: false),
+              onPressed: _scanFingerprint,
             ),
           ],
         ),

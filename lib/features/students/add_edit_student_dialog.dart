@@ -250,13 +250,19 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
 
       // 2. التحقق من تسجيل البصمة وفرادتها
       final fpId = _fpIdController.text.trim();
-      if (fpId.isEmpty) {
-        throw Exception('يرجى تسجيل بصمة الطالب أولاً عبر زر "تسجيل البصمة" لاعتماد الطالب في النظام.');
-      }
-
-      final isDuplicateFp = await repo.isFingerprintDuplicate(fpId, excludeStudentId: widget.student?.id);
-      if (isDuplicateFp) {
-        throw Exception('معرف البصمة "$fpId" مسجل مسبقاً لطالب آخر. لا يمكن تكرار البصمة.');
+      final keepsStudentIdentity =
+          widget.student != null &&
+          widget.student!.universityId == uniId;
+      if (fpId.isNotEmpty && keepsStudentIdentity) {
+        final isDuplicateFp = await repo.isFingerprintDuplicate(
+          fpId,
+          excludeStudentId: widget.student?.id,
+        );
+        if (isDuplicateFp) {
+          throw Exception(
+            'معرف البصمة "$fpId" مسجل مسبقاً لطالب آخر. لا يمكن تكرار البصمة.',
+          );
+        }
       }
 
       String collegeName = 'كلية علوم الحاسوب والتنمية البشرية';
@@ -296,22 +302,29 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         semesterId: _selectedSemesterId,
         status: _status,
         qrCode: 'DAWAMI:STUDENT:$uniId',
-        fingerprintId: fpId.isNotEmpty ? fpId : null,
-        fingerprintStatus: fpId.isNotEmpty
-            ? (widget.student?.fingerprintStatus ?? 'مسجلة')
+        fingerprintId: keepsStudentIdentity && fpId.isNotEmpty ? fpId : null,
+        fingerprintStatus: keepsStudentIdentity && fpId.isNotEmpty
+            ? 'مسجلة'
             : 'غير مسجلة',
-        fingerprintQuality: widget.student?.fingerprintQuality,
-        fingerprintEnrolledAt: widget.student?.fingerprintEnrolledAt,
+        fingerprintQuality:
+            keepsStudentIdentity && fpId.isNotEmpty
+                ? widget.student?.fingerprintQuality
+                : null,
+        fingerprintEnrolledAt:
+            keepsStudentIdentity && fpId.isNotEmpty
+                ? widget.student?.fingerprintEnrolledAt
+                : null,
         photoUrl: _photoController.text.trim().isNotEmpty ? _photoController.text.trim() : null,
         collegeName: collegeName,
         departmentName: deptName,
         levelName: levelName,
       );
 
+      var isSyncedToSupabase = false;
       if (widget.student == null) {
-        await repo.addStudent(student);
+        isSyncedToSupabase = await repo.addStudent(student);
       } else {
-        await repo.updateStudent(student);
+        isSyncedToSupabase = await repo.updateStudent(student);
       }
 
       if (mounted) {
@@ -320,21 +333,32 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
           SnackBar(
             duration: const Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
+            backgroundColor: !isSyncedToSupabase
+                ? AppColors.warning
+                : AppColors.success,
             content: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.white),
+                Icon(
+                  !isSyncedToSupabase
+                      ? Icons.cloud_off_rounded
+                      : Icons.check_circle_rounded,
+                  color: Colors.white,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     widget.student == null
-                        ? '🔔 تنبيه: تمت إضافة الطالب "${student.fullName}" بنجاح إلى قاعدة البيانات'
-                        : '🔔 تنبيه: تم حفظ وتعديل بيانات الطالب "${student.fullName}" بنجاح',
+                        ? isSyncedToSupabase
+                            ? 'تمت إضافة الطالب "${student.fullName}" ومزامنته مع Supabase.'
+                            : 'تم حفظ الطالب "${student.fullName}" محلياً؛ لم تتأكد مزامنته مع Supabase بعد.'
+                        : isSyncedToSupabase
+                            ? 'تم تعديل بيانات الطالب "${student.fullName}" ومزامنتها مع Supabase.'
+                            : 'تم حفظ تعديلات "${student.fullName}" محلياً؛ لم تتأكد مزامنتها مع Supabase بعد.',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
             ),
-            backgroundColor: AppColors.success,
           ),
         );
       }
@@ -434,7 +458,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _idController,
-                  decoration: const InputDecoration(labelText: 'الرقم الجامعي * (مثال: 2023-1590)'),
+                  decoration: const InputDecoration(
+                    labelText: 'الرقم الجامعي * (مثال: 2023-1590)',
+                  ),
                   validator: (v) => v == null || v.trim().isEmpty ? 'يرجى إدخال الرقم الجامعي' : null,
                 ),
                 const SizedBox(height: 12),
@@ -460,6 +486,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: effectiveCollegeId,
                         decoration: const InputDecoration(labelText: 'الكلية'),
                         items: colleges.map((c) {
@@ -473,6 +500,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true,
                         initialValue: effectiveStatus,
                         decoration: const InputDecoration(labelText: 'الحالة'),
                         items: const [
@@ -492,6 +520,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: effectiveDeptId,
                         decoration: const InputDecoration(labelText: 'القسم الأكاديمي'),
                         items: departments.map((d) {
@@ -505,6 +534,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: effectiveLevelId,
                         decoration: const InputDecoration(labelText: 'المستوى الدراسي'),
                         items: levels.map((l) {
@@ -581,6 +611,19 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: () async {
+                          final currentStudent = widget.student;
+                          if (currentStudent == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'احفظ بيانات الطالب أولاً، ثم فعّل البصمة من سجل الطلاب.',
+                                ),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
+
                           final name = _nameController.text.trim();
                           final uniId = _idController.text.trim();
                           if (name.isEmpty || uniId.isEmpty) {
@@ -593,26 +636,34 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                             return;
                           }
 
-                          final candidateStudent = widget.student ??
-                              Student(
-                                universityId: uniId,
-                                fullName: name,
-                                phone: _phoneController.text.trim().isNotEmpty
-                                    ? _phoneController.text.trim()
-                                    : '0000000000',
-                                email: _emailController.text.trim(),
-                                collegeId: _selectedCollegeId,
-                                departmentId: _selectedDepartmentId,
-                                levelId: _selectedLevelId,
-                                semesterId: _selectedSemesterId,
-                                status: _status,
-                                qrCode: 'DAWAMI:STUDENT:$uniId',
-                              );
+                          final hasUnsavedChanges =
+                              name != currentStudent.fullName ||
+                              uniId != currentStudent.universityId ||
+                              _phoneController.text.trim() != currentStudent.phone ||
+                              _emailController.text.trim() != currentStudent.email ||
+                              _selectedCollegeId != currentStudent.collegeId ||
+                              _selectedDepartmentId != currentStudent.departmentId ||
+                              _selectedLevelId != currentStudent.levelId ||
+                              _selectedSemesterId != currentStudent.semesterId ||
+                              _status != currentStudent.status ||
+                              _photoController.text.trim() !=
+                                  (currentStudent.photoUrl ?? '');
+                          if (hasUnsavedChanges) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'احفظ تعديلات الطالب أولاً قبل إعادة تسجيل بصمته.',
+                                ),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
 
                           final enrolledFp = await showDialog<String>(
                             context: context,
                             builder: (_) => FingerprintEnrollmentDialog(
-                              student: candidateStudent,
+                              student: currentStudent,
                               isReEnrollment: widget.student?.hasFingerprint ?? false,
                             ),
                           );

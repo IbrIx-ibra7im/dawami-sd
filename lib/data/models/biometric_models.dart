@@ -1,5 +1,8 @@
 // نماذج بيانات البصمة الحيوية وسجلات التحقق ومنع التلاعب
 
+const String fingerprintNotActivatedMessage =
+    'عذراً، لم يتم تفعيل البصمة لهذا الطالب، يرجى مراجعة إدارة النظام';
+
 class StudentFingerprint {
   final int? id;
   final int studentId;

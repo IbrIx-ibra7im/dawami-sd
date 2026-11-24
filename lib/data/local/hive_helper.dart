@@ -322,7 +322,10 @@ class HiveHelper {
     return assignedId;
   }
 
-  Future<int> updateStudent(Student student) async {
+  Future<int> updateStudent(
+    Student student, {
+    String? previousUniversityId,
+  }) async {
     if (student.id == null) return 0;
     final map = student.toMap();
     map['id'] = student.id;
@@ -330,11 +333,16 @@ class HiveHelper {
     // Remove duplicate string key if it exists
     await _studentsBox.delete(student.id.toString());
 
+    final syncPayload = Map<String, dynamic>.from(map);
+    if (previousUniversityId != null &&
+        previousUniversityId != student.universityId) {
+      syncPayload['previous_university_id'] = previousUniversityId;
+    }
     await _queueSyncItem(
       operation: 'UPDATE',
       tableName: 'students',
       recordId: student.id.toString(),
-      payload: map,
+      payload: syncPayload,
     );
     return 1;
   }
@@ -750,6 +758,20 @@ class HiveHelper {
         await _attendanceBox.put(recordId, map);
       }
     }
+
+    for (final key in _syncQueueBox.keys.toList()) {
+      final raw = _syncQueueBox.get(key);
+      if (raw == null ||
+          raw['table_name'] != tableName ||
+          raw['record_id']?.toString() != recordId) {
+        continue;
+      }
+
+      final map = Map<String, dynamic>.from(raw);
+      map['status'] = 'تمت';
+      map['error'] = null;
+      await _syncQueueBox.put(key, map);
+    }
   }
 
   Future<int> markAllQueueItemsAsSynced() async {
@@ -923,18 +945,36 @@ class HiveHelper {
 
   Future<void> saveStudentFingerprint(StudentFingerprint fp) async {
     if (!_isInitialized) return;
-    // Deactivate old fingerprints for this student
-    for (final key in _fingerprintsBox.keys) {
+
+    Object? existingKey;
+    for (final key in _fingerprintsBox.keys.toList()) {
       final val = _fingerprintsBox.get(key);
-      if (val != null && (val['student_id'] as num?)?.toInt() == fp.studentId) {
-        final updated = Map<String, dynamic>.from(val);
-        updated['is_active'] = 0;
-        await _fingerprintsBox.put(key, updated);
+      if (val == null) continue;
+
+      final studentId = val['student_id']?.toString();
+      final fingerprintId = val['fingerprint_id']?.toString();
+      final isActive = val['is_active'] == 1 || val['is_active'] == true;
+      if (isActive &&
+          fingerprintId == fp.fingerprintId &&
+          studentId != fp.studentId.toString()) {
+        throw StateError('هذه البصمة مفعّلة لطالب آخر');
+      }
+
+      if (studentId == fp.studentId.toString()) {
+        if (existingKey == null) {
+          existingKey = key;
+        } else {
+          await _fingerprintsBox.delete(key);
+        }
       }
     }
 
-    // Save active fingerprint
-    final nextId = _fingerprintsBox.length + 1;
+    // تحديث السجل الموجود للطالب بدلاً من إضافة بصمة مكررة.
+    final nextId = existingKey ??
+        (_fingerprintsBox.keys
+                .whereType<int>()
+                .fold<int>(0, (maxId, key) => key > maxId ? key : maxId) +
+            1);
     await _fingerprintsBox.put(nextId, fp.toMap());
 
     // Update student in students box
@@ -984,6 +1024,16 @@ class HiveHelper {
       }
     }
     return null;
+  }
+
+  Future<bool> hasActiveFingerprintForStudent(Student student) async {
+    if (student.id == null || !student.hasFingerprint) return false;
+    final fingerprint = await getStudentFingerprint(student.id!);
+    return fingerprint != null &&
+        fingerprint.isActive &&
+        fingerprint.studentId == student.id &&
+        fingerprint.universityId == student.universityId &&
+        fingerprint.fingerprintId == student.fingerprintId;
   }
 
   Future<List<StudentFingerprint>> getStudentFingerprints() async {

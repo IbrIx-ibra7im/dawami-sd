@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
+import 'fingerprint_provider.dart';
 
 /// معالج تسجيل وقراءة بصمة الطالب الحيوية لأول مرة والتحقق من الجودة والتفرد
 class FingerprintEnrollmentDialog extends StatefulWidget {
@@ -55,30 +56,40 @@ class _FingerprintEnrollmentDialogState extends State<FingerprintEnrollmentDialo
       _errorMessage = null;
     });
 
-    final repo = context.read<AppRepository>();
-
     try {
-      // Step 1: تشغيل الجهاز وطلب وضع الإصبع
-      await Future.delayed(const Duration(milliseconds: 700));
+      if (widget.student.id == null) {
+        throw Exception('احفظ بيانات الطالب أولاً قبل تفعيل البصمة.');
+      }
 
-      // Step 2: التقاط البصمة وفحص جودتها
-      final score = 88 + (DateTime.now().millisecond % 11); // جودة ممتازة (88% - 98%)
+      final provider = context.read<FingerprintProvider>();
+      if (!provider.canEnrollFingerprints) {
+        throw Exception(
+          'لا يمكن تسجيل بصمة فعلية حالياً: لم يتم ربط قارئ بصمة حقيقي وSDK معتمد.',
+        );
+      }
+
+      final capture = await provider.captureFingerprint(widget.student);
+      if (capture == null ||
+          capture.fingerprintId.trim().isEmpty ||
+          capture.templateHash.trim().isEmpty) {
+        throw Exception('لم يستطع قارئ البصمة التقاط قالب صالح. أعد المحاولة.');
+      }
+
+      if (capture.qualityScore < 75) {
+        throw Exception(
+          'جودة البصمة منخفضة (${capture.qualityScore}%). يرجى إعادة وضع الإصبع بثبات على المستشعر.',
+        );
+      }
+
+      if (!mounted) return;
       setState(() {
-        _qualityScore = score;
+        _qualityScore = capture.qualityScore;
         _currentStep = 2;
       });
 
-      await Future.delayed(const Duration(milliseconds: 600));
-
-      // التحقق من الجودة (يجب أن تكون 75% فأكثر)
-      if (score < 75) {
-        throw Exception('جودة البصمة منخفضة ($score%). يرجى إعادة وضع الإصبع بثبات على المستشعر.');
-      }
-
-      // Step 3: التحقق من منع تكرار البصمة لطالب آخر
-      final generatedFpId = 'FP-${widget.student.universityId}';
+      final repo = context.read<AppRepository>();
       final isDuplicate = await repo.isFingerprintDuplicate(
-        generatedFpId,
+        capture.fingerprintId,
         excludeStudentId: widget.student.id,
       );
 
@@ -86,24 +97,21 @@ class _FingerprintEnrollmentDialogState extends State<FingerprintEnrollmentDialo
         throw Exception('عذراً، هذه البصمة مسجلة مسبقاً في النظام لطالب آخر ولا يمكن تكرارها.');
       }
 
-      // Step 4: حفظ البصمة وربطها مباشرة بالطالب إذا كان موجوداً مسبقاً في قاعدة البيانات
-      final templateHash = 'TMP_${widget.student.universityId}_${DateTime.now().millisecondsSinceEpoch}';
+      await repo.enrollStudentFingerprint(
+        student: widget.student,
+        fingerprintId: capture.fingerprintId,
+        templateHash: capture.templateHash,
+        quality: capture.qualityScore,
+      );
 
-      if (widget.student.id != null) {
-        await repo.enrollStudentFingerprint(
-          student: widget.student,
-          fingerprintId: generatedFpId,
-          templateHash: templateHash,
-          quality: score,
-        );
-      }
-
+      if (!mounted) return;
       setState(() {
         _currentStep = 3;
-        _enrolledFpId = generatedFpId;
+        _enrolledFpId = capture.fingerprintId;
         _isScanning = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.toString().replaceAll('Exception: ', '');
         _isScanning = false;

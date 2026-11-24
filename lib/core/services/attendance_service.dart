@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../../data/models/student.dart';
 import '../../data/models/attendance_record.dart';
+import '../../data/models/biometric_models.dart';
 import '../../data/remote/supabase_service.dart';
 import '../../core/utils/date_helper.dart';
 import 'local_storage_service.dart';
@@ -32,10 +33,20 @@ class AttendanceService {
     String? lectureName,
     String? classroomName,
     String? deviceId,
+    String? verifiedFingerprintId,
   }) async {
     // 1. التحقق من أن الطالب مسجل ونشط
     if (student.status != 'نشط') {
       throw Exception('عذراً، الطالب غير نشط وحالته الحالية: (${student.status})');
+    }
+
+    if (method.trim().toLowerCase().startsWith('fingerprint')) {
+      final isVerified =
+          verifiedFingerprintId == student.fingerprintId &&
+          await _localStorage.hasActiveFingerprintForStudent(student);
+      if (!isVerified) {
+        throw Exception(fingerprintNotActivatedMessage);
+      }
     }
 
     final targetSessionId = sessionId ?? lectureId ?? 1;
@@ -163,6 +174,7 @@ class AttendanceService {
   /// تسجيل الحضور بواسطة قارئ البصمة البيومترية
   Future<AttendanceRecord> recordAttendanceByFingerprint({
     required Student student,
+    required String verifiedFingerprintId,
     int? sessionId,
     String? lectureName,
     String? classroomName,
@@ -170,6 +182,7 @@ class AttendanceService {
     return await recordAttendance(
       student: student,
       method: 'fingerprint',
+      verifiedFingerprintId: verifiedFingerprintId,
       sessionId: sessionId,
       lectureName: lectureName,
       classroomName: classroomName,

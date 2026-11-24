@@ -57,23 +57,45 @@ void main() {
       );
     });
 
-    test('ربط البصمة والباركود بالرقم الجامعي', () async {
+    test('رفض تفعيل البصمة يدوياً دون قارئ معتمد', () async {
       final student = await LocalStorageService.instance.getStudentByUniversityId('2024-TEST-001');
       expect(student, isNotNull);
 
-      // ربط البصمة
-      await StudentService.instance.linkFingerprint(
-        student: student!,
-        fingerprintId: 'FP-TEST-001',
+      await expectLater(
+        StudentService.instance.linkFingerprint(
+          student: student!,
+          fingerprintId: 'FP-TEST-001',
+        ),
+        throwsA(isA<Exception>()),
       );
 
       final updated = await LocalStorageService.instance.getStudentByUniversityId('2024-TEST-001');
-      expect(updated!.fingerprintId, 'FP-TEST-001');
-      expect(updated.hasFingerprint, isTrue);
+      expect(updated!.fingerprintId, isNull);
+      expect(updated.hasFingerprint, isFalse);
     });
   });
 
   group('2. تسجيل الحضور بالبصمة والباركود دون إنترنت (Offline-First)', () {
+    test('رفض تسجيل الحضور ببصمة غير مفعّلة', () async {
+      final student = await LocalStorageService.instance.getStudentByUniversityId('2024-TEST-001');
+      expect(student, isNotNull);
+
+      await expectLater(
+        AttendanceService.instance.recordAttendanceByFingerprint(
+          student: student!,
+          verifiedFingerprintId: 'FP-UNREGISTERED',
+          sessionId: 99,
+        ),
+        throwsA(
+          isA<Exception>().having(
+            (error) => error.toString(),
+            'message',
+            contains('عذراً، لم يتم تفعيل البصمة لهذا الطالب'),
+          ),
+        ),
+      );
+    });
+
     test('تسجيل الحضور بالباركود واستخراج الاسم والرقم الجامعي والتاريخ والوقت', () async {
       final record = await AttendanceService.instance.recordAttendanceByBarcode(
         barcode: 'DAWAMI:STUDENT:2024-TEST-001',

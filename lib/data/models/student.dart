@@ -31,7 +31,7 @@ class Student {
   bool get hasFingerprint =>
       fingerprintId != null &&
       fingerprintId!.isNotEmpty &&
-      fingerprintStatus != 'غير مسجلة';
+      fingerprintStatus == 'مسجلة';
 
   Student({
     this.id,
@@ -250,6 +250,7 @@ class Student {
     String? collegeName,
     String? departmentName,
     String? levelName,
+    bool clearFingerprint = false,
   }) {
     return Student(
       id: id ?? this.id,
@@ -264,10 +265,16 @@ class Student {
       semesterId: semesterId ?? this.semesterId,
       status: status ?? this.status,
       qrCode: qrCode ?? this.qrCode,
-      fingerprintId: fingerprintId ?? this.fingerprintId,
-      fingerprintStatus: fingerprintStatus ?? this.fingerprintStatus,
-      fingerprintQuality: fingerprintQuality ?? this.fingerprintQuality,
-      fingerprintEnrolledAt: fingerprintEnrolledAt ?? this.fingerprintEnrolledAt,
+      fingerprintId:
+          clearFingerprint ? null : fingerprintId ?? this.fingerprintId,
+      fingerprintStatus: fingerprintStatus ??
+          (clearFingerprint ? 'غير مسجلة' : this.fingerprintStatus),
+      fingerprintQuality: clearFingerprint
+          ? null
+          : fingerprintQuality ?? this.fingerprintQuality,
+      fingerprintEnrolledAt: clearFingerprint
+          ? null
+          : fingerprintEnrolledAt ?? this.fingerprintEnrolledAt,
       photoUrl: photoUrl ?? this.photoUrl,
       collegeName: collegeName ?? this.collegeName,
       departmentName: departmentName ?? this.departmentName,

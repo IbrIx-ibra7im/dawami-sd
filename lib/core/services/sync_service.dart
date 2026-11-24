@@ -107,7 +107,7 @@ class SyncService extends ChangeNotifier {
   /// تحديث عدد السجلات التي تنتظر المزامنة
   Future<void> refreshPendingCount() async {
     try {
-      _pendingRecordsCount = await _localStorage.getPendingAttendanceCount();
+      _pendingRecordsCount = await _hive.getPendingSyncCount();
       notifyListeners();
     } catch (_) {}
   }
@@ -172,9 +172,17 @@ class SyncService extends ChangeNotifier {
         await _hive.syncWithSupabase();
       } catch (_) {}
 
+      await refreshPendingCount();
+      if (_pendingRecordsCount > 0) {
+        _status = SyncStatus.failed;
+        _lastError =
+            'تعذرت مزامنة بعض السجلات؛ ستبقى محفوظة محلياً لإعادة المحاولة.';
+        notifyListeners();
+        return false;
+      }
+
       _lastSyncTime = DateTime.now();
       _status = SyncStatus.success;
-      await refreshPendingCount();
       notifyListeners();
       return true;
     } catch (e) {

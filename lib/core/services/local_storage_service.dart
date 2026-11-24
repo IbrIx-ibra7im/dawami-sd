@@ -40,6 +40,10 @@ class LocalStorageService {
     return await _hive.getStudentByQrOrBarcode(barcode);
   }
 
+  Future<bool> hasActiveFingerprintForStudent(Student student) async {
+    return await _hive.hasActiveFingerprintForStudent(student);
+  }
+
   /// حفظ أو تحديث طالب محلياً
   Future<int> saveStudent(Student student) async {
     if (student.id != null) {
@@ -104,6 +108,10 @@ class LocalStorageService {
   /// تعليم سجل كـ "تمت المزامنة" بعد التأكد من نجاح رفعه إلى Supabase
   Future<void> markAttendanceSynced(String recordId) async {
     await _hive.markRecordAsSynced('attendance', recordId);
+  }
+
+  Future<void> markStudentSynced(String recordId) async {
+    await _hive.markRecordAsSynced('students', recordId);
   }
 
   /// تعليم جميع عناصر طابور المزامنة كمزامنة

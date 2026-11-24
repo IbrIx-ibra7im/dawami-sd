@@ -43,9 +43,22 @@ class StudentService {
     if (cleanUniversityId.isEmpty) {
       throw Exception('يرجى إدخال الرقم الجامعي للطالب');
     }
+    if (fingerprintId?.trim().isNotEmpty == true) {
+      throw Exception(
+        'لا يمكن تفعيل بصمة بمعرّف يدوي؛ يجب التقاطها بقارئ معتمد وربطها من الإدارة.',
+      );
+    }
 
-    // 1. التحقق من عدم تكرار الرقم الجامعي محلياً في Hive
-    final existingLocal = await _localStorage.getStudentByUniversityId(cleanUniversityId);
+    // مقارنة الرقم بعد توحيد حالة الأحرف لمنع تكراره بصيغ مختلفة.
+    Student? existingLocal;
+    final normalizedUniversityId = cleanUniversityId.toLowerCase();
+    for (final localStudent in await _localStorage.getStudents()) {
+      if (localStudent.universityId.trim().toLowerCase() ==
+          normalizedUniversityId) {
+        existingLocal = localStudent;
+        break;
+      }
+    }
     if (existingLocal != null) {
       throw Exception('الرقم الجامعي ($cleanUniversityId) مسجل بالفعل للطالب: ${existingLocal.fullName}');
     }
@@ -89,8 +102,7 @@ class StudentService {
       levelId: levelId ?? 1,
       semesterId: semesterId ?? 1,
       qrCode: finalBarcode,
-      fingerprintId: fingerprintId,
-      fingerprintStatus: (fingerprintId != null && fingerprintId.isNotEmpty) ? 'مسجلة' : 'غير مسجلة',
+      fingerprintStatus: 'غير مسجلة',
       photoUrl: photoUrl,
       collegeName: collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية',
       departmentName: departmentName ?? 'علوم الحاسوب',
@@ -105,7 +117,7 @@ class StudentService {
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
         await _supabase.insertStudent(savedStudent);
-        await _localStorage.markAttendanceSynced(assignedId.toString());
+        await _localStorage.markStudentSynced(assignedId.toString());
       } catch (e) {
         if (kDebugMode) {
           print('ملاحظة: تعذر الرفع المباشر إلى Supabase، تم حفظ الطالب في طابور المزامنة المحلي: $e');
@@ -131,16 +143,23 @@ class StudentService {
     required Student student,
     required String fingerprintId,
   }) async {
-    final updated = student.copyWith(
-      fingerprintId: fingerprintId,
-      fingerprintStatus: 'مسجلة',
-      fingerprintEnrolledAt: DateTime.now().toIso8601String(),
+    final storedStudent = await _localStorage.getStudentByUniversityId(
+      student.universityId,
     );
-    await _localStorage.saveStudent(updated);
+    final isAlreadyEnrolled =
+        storedStudent != null &&
+        storedStudent.id == student.id &&
+        storedStudent.fingerprintId == fingerprintId &&
+        await _localStorage.hasActiveFingerprintForStudent(storedStudent);
+    if (!isAlreadyEnrolled) {
+      throw Exception(
+        'لا يمكن ربط بصمة يدوياً؛ يجب تسجيلها بقارئ معتمد من شاشة الإدارة.',
+      );
+    }
 
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.updateStudent(updated);
+        await _supabase.updateStudent(storedStudent);
       } catch (_) {}
     }
   }

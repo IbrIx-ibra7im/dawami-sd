@@ -42,7 +42,8 @@ class SupabaseService {
   String get currentKey => _currentKey;
 
   /// Complete SQL Script for Single-Table Design in Supabase
-  static const String sqlPermissionFixScript = '''-- ============================================================
+  static const String sqlPermissionFixScript =
+      '''-- ============================================================
 -- كود إنشاء الجدول الموحد الوحيد وتصحيح الصلاحيات في Supabase
 -- انسخ هذا الكود والصقه في Supabase Dashboard -> SQL Editor ثم اضغط Run
 -- ============================================================
@@ -170,11 +171,20 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   Future<bool> resetToDefault() async {
     try {
       if (HiveHelper.instance.isInitialized) {
-        await HiveHelper.instance.setSetting('supabase_url', ApiConstants.defaultSupabaseUrl);
-        await HiveHelper.instance.setSetting('supabase_key', ApiConstants.defaultSupabaseAnonKey);
+        await HiveHelper.instance.setSetting(
+          'supabase_url',
+          ApiConstants.defaultSupabaseUrl,
+        );
+        await HiveHelper.instance.setSetting(
+          'supabase_key',
+          ApiConstants.defaultSupabaseAnonKey,
+        );
       }
     } catch (_) {}
-    return await initialize(ApiConstants.defaultSupabaseUrl, ApiConstants.defaultSupabaseAnonKey);
+    return await initialize(
+      ApiConstants.defaultSupabaseUrl,
+      ApiConstants.defaultSupabaseAnonKey,
+    );
   }
 
   /// Live connection test diagnosing RLS / 42501 permission status
@@ -196,7 +206,8 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
       return SupabaseTestResult(
         isConnected: true,
         statusTitle: 'متصل ومصرح بالكامل',
-        message: 'تم الاتصال بالخادم بنجاح والجدول الموحد dawami_records مصرح له بالكامل.',
+        message:
+            'تم الاتصال بالخادم بنجاح والجدول الموحد dawami_records مصرح له بالكامل.',
         responseTimeMs: stopwatch.elapsedMilliseconds,
       );
     } on PostgrestException catch (pe) {
@@ -206,7 +217,8 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
           isConnected: false,
           isPermissionDenied: true,
           statusTitle: 'تم رفض الصلاحيات (كود 42501)',
-          message: 'تم الاتصال بالخادم، لكن Supabase يرفض الوصول لجداول قاعدة البيانات بسبب قيود Row Level Security (RLS) أو عدم منح الصلاحيات لدور anon في PostgreSQL.',
+          message:
+              'تم الاتصال بالخادم، لكن Supabase يرفض الوصول لجداول قاعدة البيانات بسبب قيود Row Level Security (RLS) أو عدم منح الصلاحيات لدور anon في PostgreSQL.',
           hint: 'قم بنسخ كود SQL المرفق وتشغيله في Supabase SQL Editor.',
           responseTimeMs: stopwatch.elapsedMilliseconds,
         );
@@ -223,7 +235,8 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
       return SupabaseTestResult(
         isConnected: false,
         statusTitle: 'فشل الاتصال',
-        message: 'تعذر الوصول إلى الخادم. تأكد من توفر الإنترنت وصحة الرابط: $e',
+        message:
+            'تعذر الوصول إلى الخادم. تأكد من توفر الإنترنت وصحة الرابط: $e',
         responseTimeMs: stopwatch.elapsedMilliseconds,
       );
     }
@@ -271,11 +284,61 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
     return student.toDawamiRecord();
   }
 
+  Future<void> _saveStudentRecord(
+    Map<String, dynamic> record, {
+    String? previousUniversityId,
+  }) async {
+    final oldKey = previousUniversityId?.trim();
+    final newKey = record['record_key']?.toString();
+    if (oldKey != null && oldKey.isNotEmpty && oldKey != newKey) {
+      final oldRecord = await _client!
+          .from('dawami_records')
+          .select('id')
+          .eq('record_type', 'student')
+          .eq('record_key', oldKey)
+          .maybeSingle();
+
+      final newRecord = await _client!
+          .from('dawami_records')
+          .select('id,data')
+          .eq('record_type', 'student')
+          .eq('record_key', newKey ?? '')
+          .maybeSingle();
+
+      if (oldRecord != null) {
+        if (newRecord != null && oldRecord['id'] != newRecord['id']) {
+          throw StateError('الرقم الجامعي الجديد مسجل لطالب آخر في Supabase');
+        }
+        if (newRecord == null) {
+          await _client!
+              .from('dawami_records')
+              .update(record)
+              .eq('record_type', 'student')
+              .eq('record_key', oldKey);
+          return;
+        }
+      } else if (newRecord != null) {
+        final data = newRecord['data'] is Map
+            ? Map<String, dynamic>.from(newRecord['data'] as Map)
+            : <String, dynamic>{};
+        final expectedUuid = (record['data'] as Map<String, dynamic>?)?['uuid']
+            ?.toString();
+        final existingUuid = (newRecord['id'] ?? data['uuid'])?.toString();
+        if (expectedUuid == null || expectedUuid != existingUuid) {
+          throw StateError('الرقم الجامعي الجديد مسجل لطالب آخر في Supabase');
+        }
+      }
+    }
+
+    await _client!
+        .from('dawami_records')
+        .upsert(record, onConflict: 'record_type,record_key');
+  }
+
   // Sync Queue Operation Handler
   Future<bool> syncOperation(SyncQueueItem item) async {
     if (!_isConfigured || _client == null) {
-      await Future.delayed(const Duration(milliseconds: 100));
-      return true;
+      return false;
     }
 
     try {
@@ -285,11 +348,20 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
         final record = formatStudentPayload(payload);
         switch (item.operation.toUpperCase()) {
           case 'INSERT':
+            await _client!
+                .from('dawami_records')
+                .upsert(record, onConflict: 'record_type,record_key');
+            break;
           case 'UPDATE':
-            await _client!.from('dawami_records').upsert(record, onConflict: 'record_type,record_key');
+            await _saveStudentRecord(
+              record,
+              previousUniversityId: payload['previous_university_id']
+                  ?.toString(),
+            );
             break;
           case 'DELETE':
-            final key = payload['record_key'] ??
+            final key =
+                payload['record_key'] ??
                 payload['university_id'] ??
                 payload['student_number'] ??
                 record['record_key'];
@@ -314,11 +386,22 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
         switch (item.operation.toUpperCase()) {
           case 'INSERT':
           case 'UPDATE':
-            await _client!.from('dawami_records').upsert(attendanceRecord.toDawamiRecord(), onConflict: 'record_type,record_key');
+            await _client!
+                .from('dawami_records')
+                .upsert(
+                  attendanceRecord.toDawamiRecord(),
+                  onConflict: 'record_type,record_key',
+                );
             break;
           case 'DELETE':
-            final key = attendanceRecord.id.isNotEmpty ? attendanceRecord.id : (payload['id'] ?? item.recordId);
-            await _client!.from('dawami_records').delete().eq('record_type', 'attendance').eq('record_key', key);
+            final key = attendanceRecord.id.isNotEmpty
+                ? attendanceRecord.id
+                : (payload['id'] ?? item.recordId);
+            await _client!
+                .from('dawami_records')
+                .delete()
+                .eq('record_type', 'attendance')
+                .eq('record_key', key);
             break;
         }
         return true;
@@ -336,11 +419,17 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
             'data': payload,
             'updated_at': DateTime.now().toIso8601String(),
           };
-          await _client!.from('dawami_records').upsert(genericRecord, onConflict: 'record_type,record_key');
+          await _client!
+              .from('dawami_records')
+              .upsert(genericRecord, onConflict: 'record_type,record_key');
           break;
         case 'DELETE':
           final id = payload['id']?.toString() ?? item.recordId.toString();
-          await _client!.from('dawami_records').delete().eq('record_type', item.tableName).eq('record_key', id);
+          await _client!
+              .from('dawami_records')
+              .delete()
+              .eq('record_type', item.tableName)
+              .eq('record_key', id);
           break;
       }
       return true;
@@ -357,7 +446,9 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
     if (!_isConfigured || _client == null || students.isEmpty) return false;
     try {
       final cleanList = students.map((s) => formatStudentPayload(s)).toList();
-      await _client!.from('dawami_records').upsert(cleanList, onConflict: 'record_type,record_key');
+      await _client!
+          .from('dawami_records')
+          .upsert(cleanList, onConflict: 'record_type,record_key');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase batchUpsertStudents notice: $e');
@@ -370,10 +461,17 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   // ============================================================
 
   /// Fetch students from single unified table (dawami_records)
-  Future<List<Student>> getStudents({String? query, int? collegeId, String? status}) async {
+  Future<List<Student>> getStudents({
+    String? query,
+    int? collegeId,
+    String? status,
+  }) async {
     if (!_isConfigured || _client == null) return [];
     try {
-      var builder = _client!.from('dawami_records').select().eq('record_type', 'student');
+      var builder = _client!
+          .from('dawami_records')
+          .select()
+          .eq('record_type', 'student');
       if (status != null && status != 'الكل') {
         builder = builder.eq('status', status);
       }
@@ -384,7 +482,8 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
         final student = Student.fromDawamiRecord(map);
         if (query != null && query.trim().isNotEmpty) {
           final q = query.trim().toLowerCase();
-          final match = student.fullName.toLowerCase().contains(q) ||
+          final match =
+              student.fullName.toLowerCase().contains(q) ||
               student.universityId.toLowerCase().contains(q) ||
               student.phone.contains(q);
           if (!match) continue;
@@ -403,7 +502,11 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
     if (!_isConfigured || _client == null) return null;
     try {
       final payload = student.toDawamiRecord();
-      final response = await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key').select().maybeSingle();
+      final response = await _client!
+          .from('dawami_records')
+          .upsert(payload, onConflict: 'record_type,record_key')
+          .select()
+          .maybeSingle();
       if (response != null) {
         return Student.fromDawamiRecord(Map<String, dynamic>.from(response));
       }
@@ -415,11 +518,17 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   }
 
   /// Update student in single unified table (dawami_records)
-  Future<bool> updateStudent(Student student) async {
+  Future<bool> updateStudent(
+    Student student, {
+    String? previousUniversityId,
+  }) async {
     if (!_isConfigured || _client == null) return false;
     try {
       final payload = student.toDawamiRecord();
-      await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key');
+      await _saveStudentRecord(
+        payload,
+        previousUniversityId: previousUniversityId,
+      );
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase updateStudent error: $e');
@@ -472,10 +581,17 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   }
 
   /// Fetch attendance records from single unified table (dawami_records)
-  Future<List<AttendanceRecord>> getAttendanceRecords({int? sessionId, String? date, String? method}) async {
+  Future<List<AttendanceRecord>> getAttendanceRecords({
+    int? sessionId,
+    String? date,
+    String? method,
+  }) async {
     if (!_isConfigured || _client == null) return [];
     try {
-      var builder = _client!.from('dawami_records').select().eq('record_type', 'attendance');
+      var builder = _client!
+          .from('dawami_records')
+          .select()
+          .eq('record_type', 'attendance');
       if (method != null && method != 'الكل') {
         builder = builder.eq('method', method);
       }
@@ -512,8 +628,12 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   }) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      final date = attendanceDate ?? (checkIn.length >= 10 ? checkIn.substring(0, 10) : null);
-      final time = attendanceTime ?? (checkIn.length >= 16 ? checkIn.substring(11, 16) : null);
+      final date =
+          attendanceDate ??
+          (checkIn.length >= 10 ? checkIn.substring(0, 10) : null);
+      final time =
+          attendanceTime ??
+          (checkIn.length >= 16 ? checkIn.substring(11, 16) : null);
       final record = AttendanceRecord(
         id: id,
         studentId: studentId,
@@ -532,7 +652,9 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
       if (date != null) payload['record_date'] = date;
       if (time != null) payload['record_time'] = time;
 
-      await _client!.from('dawami_records').upsert(payload, onConflict: 'record_type,record_key');
+      await _client!
+          .from('dawami_records')
+          .upsert(payload, onConflict: 'record_type,record_key');
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase recordAttendance error: $e');
@@ -544,7 +666,11 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   Future<bool> deleteAttendanceRecord(String id) async {
     if (!_isConfigured || _client == null) return false;
     try {
-      await _client!.from('dawami_records').delete().eq('record_type', 'attendance').eq('record_key', id);
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'attendance')
+          .eq('record_key', id);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteAttendanceRecord error: $e');
@@ -556,10 +682,16 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   Future<bool> deleteMultipleAttendanceRecords(List<String> ids) async {
     if (!_isConfigured || _client == null || ids.isEmpty) return false;
     try {
-      await _client!.from('dawami_records').delete().eq('record_type', 'attendance').inFilter('record_key', ids);
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'attendance')
+          .inFilter('record_key', ids);
       return true;
     } catch (e) {
-      if (kDebugMode) print('Supabase deleteMultipleAttendanceRecords error: $e');
+      if (kDebugMode) {
+        print('Supabase deleteMultipleAttendanceRecords error: $e');
+      }
       rethrow;
     }
   }
@@ -569,7 +701,9 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
     if (!_isConfigured || _client == null) return [];
     try {
       final response = await _client!.from('lectures').select();
-      return (response as List).map((i) => Lecture.fromMap(Map<String, dynamic>.from(i))).toList();
+      return (response as List)
+          .map((i) => Lecture.fromMap(Map<String, dynamic>.from(i)))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Supabase getLectures error: $e');
       return [];
@@ -581,7 +715,9 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
     if (!_isConfigured || _client == null) return [];
     try {
       final response = await _client!.from('colleges').select();
-      return (response as List).map((i) => College.fromMap(Map<String, dynamic>.from(i))).toList();
+      return (response as List)
+          .map((i) => College.fromMap(Map<String, dynamic>.from(i)))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Supabase getColleges error: $e');
       return [];
@@ -597,7 +733,9 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
         builder = builder.eq('college_id', collegeId);
       }
       final response = await builder;
-      return (response as List).map((i) => Department.fromMap(Map<String, dynamic>.from(i))).toList();
+      return (response as List)
+          .map((i) => Department.fromMap(Map<String, dynamic>.from(i)))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Supabase getDepartments error: $e');
       return [];
@@ -608,8 +746,13 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   Future<List<AcademicLevel>> getAcademicLevels() async {
     if (!_isConfigured || _client == null) return [];
     try {
-      final response = await _client!.from('academic_levels').select().order('order_no', ascending: true);
-      return (response as List).map((i) => AcademicLevel.fromMap(Map<String, dynamic>.from(i))).toList();
+      final response = await _client!
+          .from('academic_levels')
+          .select()
+          .order('order_no', ascending: true);
+      return (response as List)
+          .map((i) => AcademicLevel.fromMap(Map<String, dynamic>.from(i)))
+          .toList();
     } catch (e) {
       if (kDebugMode) print('Supabase getAcademicLevels error: $e');
       return [];

@@ -475,10 +475,19 @@ class AppRepository extends ChangeNotifier {
     required Student student,
     required String method, // 'qr', 'fingerprint', 'manual'
     String? customStatus,
+    String? verifiedFingerprintId,
   }) async {
-    // تسجيل الحضور بالبصمة الحيوية أو رمز QR متاح دائماً ومباشر للطلاب دون ربطه بتسجيل الدخول
     if (student.status != 'نشط') {
       throw Exception('عذراً، الطالب غير نشط وحالته الحالية: (${student.status})');
+    }
+
+    if (method.trim().toLowerCase().startsWith('fingerprint')) {
+      final isActivated =
+          verifiedFingerprintId == student.fingerprintId &&
+          await _hive.hasActiveFingerprintForStudent(student);
+      if (!isActivated) {
+        throw Exception(fingerprintNotActivatedMessage);
+      }
     }
 
     if (_activeSession == null) {
@@ -608,47 +617,101 @@ class AppRepository extends ChangeNotifier {
   }
 
   // --- Student CRUD ---
-  Future<void> addStudent(Student student) async {
+  Future<bool> addStudent(Student student) async {
     if (!RoleManager.canManageStudents(currentRole)) {
-      if (_isLoggedIn) {
-        switchUserRole(UserRole.superAdmin);
-      } else {
-        throw Exception('ليس لديك صلاحية لإضافة طالب');
-      }
+      throw Exception('ليس لديك صلاحية لإضافة طالب');
     }
+    final normalizedId = student.universityId.trim().toLowerCase();
+    if (normalizedId.isEmpty) {
+      throw Exception('الرقم الجامعي مطلوب لإضافة الطالب');
+    }
+    final localStudents = await _hive.getStudents();
+    if ([..._students, ...localStudents].any(
+      (existing) =>
+          existing.universityId.trim().toLowerCase() == normalizedId,
+    )) {
+      throw Exception('الرقم الجامعي مسجل مسبقاً لطالب آخر');
+    }
+
     // 1. Save to Backup Database (Hive)
-    final id = await _hive.insertStudent(student);
+    final studentToAdd = student.copyWith(
+      universityId: student.universityId.trim(),
+      clearFingerprint: true,
+    );
+    final id = await _hive.insertStudent(studentToAdd);
     try {
-      await _db.insertStudent(student.copyWith(id: id));
+      await _db.insertStudent(studentToAdd.copyWith(id: id));
     } catch (_) {}
 
     // 2. Direct Sync to Primary Database (Supabase)
+    var syncedToSupabase = false;
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.insertStudent(student.copyWith(id: id));
-        _isPrimaryConnected = true;
-        await _hive.markRecordAsSynced('students', id.toString());
+        final saved = await _supabase.insertStudent(
+          studentToAdd.copyWith(id: id),
+        );
+        syncedToSupabase = saved != null;
+        _isPrimaryConnected = syncedToSupabase;
+        if (syncedToSupabase) {
+          await _hive.markRecordAsSynced('students', id.toString());
+        }
       } catch (e) {
+        _isPrimaryConnected = false;
         if (kDebugMode) print('Direct primary DB addStudent notice (backed up in Hive): $e');
       }
+    } else {
+      _isPrimaryConnected = false;
     }
     await refreshStudents();
+    SyncService.instance.refreshPendingCount();
+    return syncedToSupabase;
   }
 
   Future<int> importStudents(List<Student> students) async {
     if (!RoleManager.canManageStudents(currentRole)) {
       throw Exception('ليس لديك صلاحية لإضافة أو استيراد الطلاب');
     }
+    final safeStudents = <Student>[];
+    final importedIds = <String>{};
+    for (final importedStudent in students) {
+      final normalizedId = importedStudent.universityId.trim().toLowerCase();
+      if (normalizedId.isEmpty || !importedIds.add(normalizedId)) {
+        throw Exception(
+          'الملف يحتوي على رقم جامعي فارغ أو مكرر: ${importedStudent.universityId}',
+        );
+      }
+
+      final existing = await _hive.getStudentByUniversityId(
+        importedStudent.universityId,
+      );
+      if (existing != null &&
+          await _hive.hasActiveFingerprintForStudent(existing)) {
+        safeStudents.add(
+          importedStudent.copyWith(
+            id: existing.id,
+            fingerprintId: existing.fingerprintId,
+            fingerprintStatus: 'مسجلة',
+            fingerprintQuality: existing.fingerprintQuality,
+            fingerprintEnrolledAt: existing.fingerprintEnrolledAt,
+          ),
+        );
+      } else {
+        safeStudents.add(importedStudent.copyWith(clearFingerprint: true));
+      }
+    }
+
     // Batch Insert to Backup Database (Hive)
-    final count = await _hive.batchInsertOrUpdateStudents(students);
+    final count = await _hive.batchInsertOrUpdateStudents(safeStudents);
     try {
-      await _db.batchInsertOrUpdateStudents(students);
+      await _db.batchInsertOrUpdateStudents(safeStudents);
     } catch (_) {}
 
     // Batch Insert to Primary Database (Supabase)
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.batchUpsertStudents(students.map((s) => s.toMap()).toList());
+        await _supabase.batchUpsertStudents(
+          safeStudents.map((s) => s.toMap()).toList(),
+        );
         _isPrimaryConnected = true;
       } catch (e) {
         if (kDebugMode) print('Direct primary DB batchUpsertStudents notice (backed up in Hive): $e');
@@ -659,6 +722,9 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> linkBarcodeToStudent(int studentId, String newBarcode) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لتعديل بيانات الطالب');
+    }
     await _hive.linkBarcodeToStudent(studentId, newBarcode);
     try {
       await _db.linkBarcodeToStudent(studentId, newBarcode);
@@ -675,49 +741,112 @@ class AppRepository extends ChangeNotifier {
     await refreshStudents();
   }
 
-  Future<void> updateStudent(Student student) async {
-    Student? previousStudent;
-    for (final existing in _students) {
-      if (existing.id == student.id) {
-        previousStudent = existing;
-        break;
+  Future<bool> updateStudent(Student student) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لتعديل بيانات الطالب');
+    }
+    if (student.id == null || student.universityId.trim().isEmpty) {
+      throw Exception('معرّف الطالب والرقم الجامعي مطلوبان للتعديل');
+    }
+
+    Student? previousStudent = await _hive.getStudentById(student.id!);
+    if (previousStudent == null) {
+      for (final existing in _students) {
+        if (existing.id == student.id) {
+          previousStudent = existing;
+          break;
+        }
       }
+    }
+    if (previousStudent == null) {
+      throw Exception('تعذر العثور على الطالب المطلوب تعديله');
+    }
+
+    final normalizedId = student.universityId.trim().toLowerCase();
+    final localStudents = await _hive.getStudents();
+    final duplicate = [..._students, ...localStudents].any(
+      (existing) =>
+          existing.id != student.id &&
+          existing.universityId.trim().toLowerCase() == normalizedId,
+    );
+    if (duplicate) {
+      throw Exception('الرقم الجامعي مسجل مسبقاً لطالب آخر');
+    }
+
+    var updatedStudent = student.copyWith(
+      universityId: student.universityId.trim(),
+    );
+    final universityIdChanged =
+        previousStudent.universityId != updatedStudent.universityId;
+    if (universityIdChanged) {
+      // تغيير الرقم الجامعي يبطل ربط البصمة القديمة بهوية الطالب السابقة.
+      await _hive.deleteStudentFingerprint(student.id!);
+      try {
+        await _db.deleteStudentFingerprint(student.id!);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Local SQLite fingerprint cleanup notice: $e');
+        }
+      }
+      updatedStudent = updatedStudent.copyWith(
+        clearFingerprint: true,
+      );
     }
 
     // 1. Update in Backup Database (Hive)
-    await _hive.updateStudent(student);
+    await _hive.updateStudent(
+      updatedStudent,
+      previousUniversityId: previousStudent.universityId,
+    );
     try {
-      await _db.updateStudent(student);
+      await _db.updateStudent(updatedStudent);
     } catch (e) {
       if (kDebugMode) print('Local SQLite updateStudent notice: $e');
     }
 
+    var syncedToSupabase = false;
     // 2. Update in Primary Database (Supabase)
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.updateStudent(student);
-        _isPrimaryConnected = true;
-        if (student.id != null) {
-          await _hive.markRecordAsSynced('students', student.id.toString());
+        syncedToSupabase = await _supabase.updateStudent(
+          updatedStudent,
+          previousUniversityId: previousStudent.universityId,
+        );
+        _isPrimaryConnected = syncedToSupabase;
+        if (syncedToSupabase) {
+          await _hive.markRecordAsSynced(
+            'students',
+            updatedStudent.id.toString(),
+          );
         }
       } catch (e) {
+        _isPrimaryConnected = false;
         if (kDebugMode) print('Direct primary DB updateStudent notice (backed up in Hive): $e');
       }
+    } else {
+      _isPrimaryConnected = false;
     }
     final existingIndex = _students.indexWhere(
       (existing) =>
-          existing.id == student.id ||
+          existing.id == updatedStudent.id ||
           existing.universityId == previousStudent?.universityId,
     );
     if (existingIndex == -1) {
-      _students.add(student);
+      _students.add(updatedStudent);
     } else {
-      _students[existingIndex] = student;
+      _students[existingIndex] = updatedStudent;
     }
     notifyListeners();
+    _triggerAutoSync();
+    SyncService.instance.refreshPendingCount();
+    return syncedToSupabase;
   }
 
   Future<void> deleteStudent(int studentId) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لحذف الطالب');
+    }
+
     Student? targetStudent;
     try {
       targetStudent = await _hive.getStudentById(studentId);
@@ -776,6 +905,10 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> deleteMultipleStudents(List<int> studentIds) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لحذف الطلاب');
+    }
+
     final idsToDelete = studentIds.toSet().toList();
     final studentsById = <int, Student>{};
     for (final id in idsToDelete) {
@@ -917,8 +1050,29 @@ class AppRepository extends ChangeNotifier {
     required String templateHash,
     required int quality,
   }) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لتفعيل بصمة الطالب');
+    }
+    if (student.id == null ||
+        student.universityId.trim().isEmpty ||
+        fingerprintId.trim().isEmpty ||
+        templateHash.trim().isEmpty ||
+        quality < 75 ||
+        quality > 100) {
+      throw Exception('بيانات تسجيل البصمة غير مكتملة أو غير صالحة');
+    }
+
+    final storedStudent = await _hive.getStudentById(student.id!);
+    if (storedStudent == null ||
+        storedStudent.universityId != student.universityId) {
+      throw Exception('يجب تسجيل الطالب أولاً وربط البصمة برقم جامعي صحيح');
+    }
+
     // التحقق من عدم تكرار البصمة
-    final isDuplicate = await isFingerprintDuplicate(fingerprintId, excludeStudentId: student.id);
+    final isDuplicate = await isFingerprintDuplicate(
+      fingerprintId,
+      excludeStudentId: student.id,
+    );
     if (isDuplicate) {
       throw Exception('هذه البصمة مسجلة بالفعل لطالب آخر. لا يمكن تكرار البصمة.');
     }
@@ -958,6 +1112,10 @@ class AppRepository extends ChangeNotifier {
 
   /// حذف بصمة طالب
   Future<void> deleteStudentFingerprint(int studentId) async {
+    if (!RoleManager.canManageStudents(currentRole)) {
+      throw Exception('ليس لديك صلاحية لإلغاء تفعيل بصمة الطالب');
+    }
+
     await _hive.deleteStudentFingerprint(studentId);
     try {
       await _db.deleteStudentFingerprint(studentId);
@@ -968,12 +1126,7 @@ class AppRepository extends ChangeNotifier {
       (s) => s.id == studentId,
       orElse: () => throw Exception('الطالب غير موجود'),
     );
-    final updatedStudent = student.copyWith(
-      fingerprintId: null,
-      fingerprintStatus: 'غير مسجلة',
-      fingerprintQuality: null,
-      fingerprintEnrolledAt: null,
-    );
+    final updatedStudent = student.copyWith(clearFingerprint: true);
     await updateStudent(updatedStudent);
 
     await refreshFingerprints();

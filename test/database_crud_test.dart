@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:my_app/core/permissions/role_manager.dart';
 import 'package:my_app/data/models/student.dart';
 import 'package:my_app/data/local/hive_helper.dart';
 import 'package:my_app/data/repositories/app_repository.dart';
+import 'package:my_app/features/students/add_edit_student_dialog.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -71,6 +75,127 @@ void main() {
       expect(fromHive, isNotNull);
       expect(fromHive!.fullName, equals('طالب اختبار إضافة البيانات'));
       expect(fromHive.collegeName, equals('كلية علوم الحاسوب والتنمية البشرية'));
+    });
+
+    test('Viewer cannot add a student or gain admin permissions implicitly', () async {
+      repo.switchUserRole(UserRole.viewer);
+      final student = Student(
+        universityId: 'VIEWER-${DateTime.now().millisecondsSinceEpoch}',
+        fullName: 'طالب غير مصرح',
+        phone: '',
+        email: '',
+        collegeId: 1,
+        departmentId: 1,
+        levelId: 1,
+        semesterId: 1,
+        qrCode: 'VIEWER-TEST',
+      );
+
+      await expectLater(
+        repo.addStudent(student),
+        throwsA(isA<Exception>()),
+      );
+      expect(repo.currentRole, UserRole.viewer);
+    });
+
+    test('Fingerprint attendance requires an active record linked to the student', () async {
+      final uniqueUniId = 'FP-TEST-${DateTime.now().millisecondsSinceEpoch}';
+      await repo.addStudent(
+        Student(
+          universityId: uniqueUniId,
+          fullName: 'طالب اختبار البصمة',
+          phone: '',
+          email: '',
+          collegeId: 1,
+          departmentId: 1,
+          levelId: 1,
+          semesterId: 1,
+          qrCode: 'DAWAMI:STUDENT:$uniqueUniId',
+        ),
+      );
+      var student = repo.students.firstWhere(
+        (s) => s.universityId == uniqueUniId,
+      );
+
+      await expectLater(
+        repo.registerAttendance(student: student, method: 'fingerprint'),
+        throwsA(
+          isA<Exception>().having(
+            (error) => error.toString(),
+            'message',
+            contains(
+              'عذراً، لم يتم تفعيل البصمة لهذا الطالب، يرجى مراجعة إدارة النظام',
+            ),
+          ),
+        ),
+      );
+
+      await repo.enrollStudentFingerprint(
+        student: student,
+        fingerprintId: 'FP-REG-${student.id}',
+        templateHash: 'stored-test-template',
+        quality: 90,
+      );
+      student = repo.students.firstWhere((s) => s.id == student.id);
+      expect(student.hasFingerprint, isTrue);
+      final attendance = await repo.registerAttendance(
+        student: student,
+        method: 'fingerprint',
+        verifiedFingerprintId: student.fingerprintId,
+      );
+      expect(attendance.method, 'fingerprint');
+
+      await repo.enrollStudentFingerprint(
+        student: student,
+        fingerprintId: 'FP-REG-${student.id}-UPDATED',
+        templateHash: 'updated-test-template',
+        quality: 92,
+      );
+      final activeFingerprints =
+          await HiveHelper.instance.getStudentFingerprints();
+      expect(
+        activeFingerprints.where((fp) => fp.studentId == student.id).length,
+        1,
+      );
+    });
+
+    testWidgets('Student edit form preloads values and permits university ID edits', (tester) async {
+      final student = Student(
+        id: 501,
+        uuid: 'student-uuid-501',
+        universityId: 'EDIT-501',
+        fullName: 'طالب للتعديل',
+        phone: '0912345678',
+        email: 'edit@dawami.edu',
+        collegeId: 1,
+        departmentId: 1,
+        levelId: 1,
+        semesterId: 1,
+        qrCode: 'DAWAMI:STUDENT:EDIT-501',
+      );
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppRepository>.value(
+          value: repo,
+          child: MaterialApp(
+            home: Scaffold(body: AddEditStudentDialog(student: student)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final fields = tester.widgetList<TextFormField>(find.byType(TextFormField)).toList();
+      expect(fields.first.controller?.text, equals('طالب للتعديل'));
+      expect(fields[1].controller?.text, equals('EDIT-501'));
+      expect(fields[2].controller?.text, equals('0912345678'));
+      expect(fields[3].controller?.text, equals('edit@dawami.edu'));
+
+      await tester.enterText(find.byType(TextFormField).at(1), 'EDIT-502');
+      await tester.pump();
+      expect(
+        tester.widget<TextFormField>(find.byType(TextFormField).at(1)).controller?.text,
+        equals('EDIT-502'),
+      );
     });
 
     test('Batch import of students handles string/int keys without CastError', () async {
@@ -179,10 +304,32 @@ void main() {
       await repo.registerAttendance(student: added, method: 'manual');
 
       // Update
-      final updated = added.copyWith(fullName: 'طالب تم تحديث اسمه');
+      final newUniId = '$uniqueUniId-UPDATED';
+      final updated = added.copyWith(
+        universityId: newUniId,
+        fullName: 'طالب تم تحديث اسمه',
+        qrCode: 'DAWAMI:STUDENT:$newUniId',
+      );
       await repo.updateStudent(updated);
       final foundUpdated = repo.students.firstWhere((s) => s.id == studentId);
       expect(foundUpdated.fullName, equals('طالب تم تحديث اسمه'));
+      expect(foundUpdated.universityId, equals(newUniId));
+      expect(repo.students.where((s) => s.universityId == uniqueUniId), isEmpty);
+      expect(
+        repo.students.where((s) => s.universityId == newUniId).length,
+        equals(1),
+      );
+
+      final queuedUpdate = (await HiveHelper.instance.getSyncQueueItems())
+          .lastWhere(
+            (item) =>
+                item.tableName == 'students' &&
+                item.recordId == studentId.toString() &&
+                item.operation == 'UPDATE',
+          );
+      final updatePayload =
+          jsonDecode(queuedUpdate.payload) as Map<String, dynamic>;
+      expect(updatePayload['previous_university_id'], equals(uniqueUniId));
 
       // Delete
       await repo.deleteStudent(studentId);
@@ -201,7 +348,7 @@ void main() {
             item.operation == 'DELETE',
       );
       final deletePayload = jsonDecode(deleteItem.payload) as Map<String, dynamic>;
-      expect(deletePayload['university_id'], equals(uniqueUniId));
+      expect(deletePayload['university_id'], equals(newUniId));
     });
 
     test('deleteMultipleStudents batch deletes selected students correctly', () async {
