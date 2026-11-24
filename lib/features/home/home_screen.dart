@@ -12,7 +12,6 @@ import '../fingerprint/fingerprint_screen.dart';
 import '../attendance/attendance_list_screen.dart';
 import '../students/students_list_screen.dart';
 import '../dashboard/dashboard_screen.dart';
-import '../settings/settings_screen.dart';
 import '../authentication/login_screen.dart';
 import 'desktop_main_shell.dart';
 
@@ -89,19 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Left / Action: Settings, Login & Logout
+                        // Left / Action: Login & Logout
                         Row(
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.settings_outlined, color: Colors.white),
-                              tooltip: 'الإعدادات',
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                                );
-                              },
-                            ),
                             IconButton(
                               icon: const Icon(Icons.account_circle_outlined, color: Colors.white),
                               tooltip: 'تسجيل الدخول / الصلاحيات',

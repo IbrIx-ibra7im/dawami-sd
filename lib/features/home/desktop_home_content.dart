@@ -7,7 +7,6 @@ import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 
 import '../fingerprint/fingerprint_screen.dart';
-import '../attendance/manual_attendance_dialog.dart';
 
 class DesktopHomeContent extends StatelessWidget {
   final Function(int) onNavigate;
@@ -264,20 +263,6 @@ class DesktopHomeContent extends StatelessWidget {
                     ],
                   ),
                 ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.add),
-                  label: const Text('تسجيل حضور يدوي'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => const ManualAttendanceDialog(),
-                    );
-                  },
-                ),
-                const SizedBox(width: 10),
                 ElevatedButton.icon(
                   icon: const Icon(Icons.list_alt),
                   label: const Text('عرض السجل الكامل'),
@@ -287,12 +272,6 @@ class DesktopHomeContent extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                   onPressed: () => onNavigate(3),
-                ),
-                const SizedBox(width: 8),
-                IconButton.outlined(
-                  icon: const Icon(Icons.settings_outlined, color: AppColors.primaryBlue),
-                  tooltip: 'إعدادات الحضور والانصراف',
-                  onPressed: () => onNavigate(7),
                 ),
               ],
             ),

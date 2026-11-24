@@ -6,6 +6,8 @@ import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 import '../fingerprint/fingerprint_provider.dart';
+import '../fingerprint/fingerprint_enrollment_dialog.dart';
+import '../../data/models/biometric_models.dart';
 import 'student_card_dialog.dart';
 
 class StudentCredentialsScreen extends StatefulWidget {
@@ -392,28 +394,68 @@ class _StudentCredentialsScreenState extends State<StudentCredentialsScreen> {
 
           const SizedBox(height: 24),
 
-          // Test Fingerprint Match Button
-          ElevatedButton.icon(
-            icon: const Icon(Icons.touch_app_rounded),
-            label: const Text('اختبار مطابقة بصمة هذا الطالب'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.turquoise,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            ),
-            onPressed: () async {
-              setState(() {
-                _isTestingFingerprint = true;
-                _fpTestResult = null;
-              });
+          // Actions: Re-enroll / Update Fingerprint & Test Match
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.fingerprint_rounded, size: 18),
+                label: Text(hasFingerprint ? 'إعادة تسجيل / تحديث البصمة' : 'تسجيل البصمة الحيوية'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.turquoise,
+                  side: const BorderSide(color: AppColors.turquoise),
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  await showDialog(
+                    context: context,
+                    builder: (_) => FingerprintEnrollmentDialog(
+                      student: student,
+                      isReEnrollment: hasFingerprint,
+                    ),
+                  );
+                  if (!mounted) return;
+                  final repo = context.read<AppRepository>();
+                  await repo.logBiometricVerification(
+                    BiometricVerificationLog(
+                      studentId: student.id ?? 0,
+                      method: 'fingerprint_update',
+                      status: 'success',
+                      reason: 'تم إعادة تسجيل وتحديث بصمة الطالب من لوحة التحكم',
+                      timestamp: DateTime.now().toIso8601String(),
+                      deviceModel: repo.deviceName,
+                    ),
+                  );
+                  setState(() {});
+                },
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.touch_app_rounded),
+                label: const Text('اختبار مطابقة البصمة'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.turquoise,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () async {
+                  setState(() {
+                    _isTestingFingerprint = true;
+                    _fpTestResult = null;
+                  });
 
-              await Future.delayed(const Duration(milliseconds: 1000));
+                  await Future.delayed(const Duration(milliseconds: 1000));
 
-              setState(() {
-                _isTestingFingerprint = false;
-                _fpTestResult = 'تم تطابق البصمة بنجاح مع الطالب ${student.fullName}';
-              });
-            },
+                  setState(() {
+                    _isTestingFingerprint = false;
+                    _fpTestResult = 'تم تطابق البصمة بنجاح مع الطالب ${student.fullName}';
+                  });
+                },
+              ),
+            ],
           ),
         ],
       ),

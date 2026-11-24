@@ -120,19 +120,22 @@ class FingerprintProvider extends ChangeNotifier {
     Student? matchedStudent;
 
     if (forcedStudent != null) {
-      matchedStudent = forcedStudent;
+      matchedStudent = forcedStudent.hasFingerprint ? forcedStudent : null;
     } else if (scannedFingerprintId != null && scannedFingerprintId.isNotEmpty) {
-      matchedStudent = students.firstWhere(
-        (s) => s.fingerprintId == scannedFingerprintId,
-        orElse: () => throw Exception('لم يتم العثور على طالب مسجل بهذا المعرف البيومتري'),
-      );
+      try {
+        matchedStudent = students.firstWhere(
+          (s) => s.fingerprintId == scannedFingerprintId && s.hasFingerprint,
+        );
+      } catch (_) {
+        matchedStudent = null;
+      }
     } else {
-      // مطابقة 1:N مع الطلاب المسجل لهم بصمة
+      // مطابقة 1:N حصرياً مع الطلاب الذين لديهم بصمة مسجلة ومعتمدة
       final enrolledWithFingerprint = students.where((s) => s.hasFingerprint).toList();
       if (enrolledWithFingerprint.isNotEmpty) {
         matchedStudent = enrolledWithFingerprint.first;
-      } else if (students.isNotEmpty) {
-        matchedStudent = students.first;
+      } else {
+        matchedStudent = null;
       }
     }
 
@@ -143,8 +146,9 @@ class FingerprintProvider extends ChangeNotifier {
       notifyListeners();
       return matchedStudent;
     } else {
+      _lastIdentifiedStudent = null;
       _status = BiometricDeviceStatus.unmatched;
-      _statusMessage = 'لم يتم التعرف على البصمة أو الطالب غير مسجل في النظام';
+      _statusMessage = 'هذه البصمة غير مسجلة في النظام';
       notifyListeners();
       return null;
     }

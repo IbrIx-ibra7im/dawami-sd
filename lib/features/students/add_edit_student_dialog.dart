@@ -248,13 +248,15 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         throw Exception('الرقم الجامعي "$uniId" مسجل مسبقاً لطالب آخر. يجب أن يكون الرقم الجامعي فريداً.');
       }
 
-      // 2. التحقق من فرادة معرف البصمة إن وجد
+      // 2. التحقق من تسجيل البصمة وفرادتها
       final fpId = _fpIdController.text.trim();
-      if (fpId.isNotEmpty) {
-        final isDuplicateFp = await repo.isFingerprintDuplicate(fpId, excludeStudentId: widget.student?.id);
-        if (isDuplicateFp) {
-          throw Exception('معرف البصمة "$fpId" مسجل مسبقاً لطالب آخر. لا يمكن تكرار البصمة.');
-        }
+      if (fpId.isEmpty) {
+        throw Exception('يرجى تسجيل بصمة الطالب أولاً عبر زر "تسجيل البصمة" لاعتماد الطالب في النظام.');
+      }
+
+      final isDuplicateFp = await repo.isFingerprintDuplicate(fpId, excludeStudentId: widget.student?.id);
+      if (isDuplicateFp) {
+        throw Exception('معرف البصمة "$fpId" مسجل مسبقاً لطالب آخر. لا يمكن تكرار البصمة.');
       }
 
       String collegeName = 'كلية علوم الحاسوب والتنمية البشرية';
@@ -350,6 +352,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
   @override
   Widget build(BuildContext context) {
     final repo = context.watch<AppRepository>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isEdit = widget.student != null;
 
     final colleges = repo.colleges.isNotEmpty
@@ -515,45 +518,114 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _fpIdController,
-                        decoration: const InputDecoration(
-                          labelText: 'معرّف البصمة في الجهاز (مثال: FP-1045)',
-                          prefixIcon: Icon(Icons.fingerprint),
+                // Biometric Fingerprint Registration Section
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: _fpIdController.text.isNotEmpty
+                        ? AppColors.turquoise.withAlpha(15)
+                        : (isDark ? AppColors.surfaceDark : Colors.grey.shade50),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _fpIdController.text.isNotEmpty
+                          ? AppColors.turquoise
+                          : (isDark ? AppColors.borderDark : AppColors.borderLight),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: _fpIdController.text.isNotEmpty
+                              ? AppColors.turquoise.withAlpha(25)
+                              : Colors.grey.withAlpha(20),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.fingerprint_rounded,
+                          color: _fpIdController.text.isNotEmpty ? AppColors.turquoise : Colors.grey,
+                          size: 24,
                         ),
                       ),
-                    ),
-                    if (widget.student != null) ...[
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        icon: const Icon(Icons.touch_app, size: 16),
-                        label: const Text('تسجيل البصمة', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'بصمة الطالب الحيوية (مطلوبة)',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _fpIdController.text.isNotEmpty
+                                  ? 'معرف البصمة المرتبط: ${_fpIdController.text}'
+                                  : 'ضع إصبع الطالب على المستشعر لتسجيل البصمة',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: _fpIdController.text.isNotEmpty ? AppColors.turquoise : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton.icon(
+                        icon: const Icon(Icons.touch_app_rounded, size: 16),
+                        label: Text(_fpIdController.text.isNotEmpty ? 'إعادة التسجيل' : 'تسجيل البصمة'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.turquoise,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
                         onPressed: () async {
-                          final repo = context.read<AppRepository>();
-                          await showDialog(
+                          final name = _nameController.text.trim();
+                          final uniId = _idController.text.trim();
+                          if (name.isEmpty || uniId.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('يرجى إدخال اسم الطالب والرقم الجامعي أولاً قبل تسجيل البصمة'),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final candidateStudent = widget.student ??
+                              Student(
+                                universityId: uniId,
+                                fullName: name,
+                                phone: _phoneController.text.trim().isNotEmpty
+                                    ? _phoneController.text.trim()
+                                    : '0000000000',
+                                email: _emailController.text.trim(),
+                                collegeId: _selectedCollegeId,
+                                departmentId: _selectedDepartmentId,
+                                levelId: _selectedLevelId,
+                                semesterId: _selectedSemesterId,
+                                status: _status,
+                                qrCode: 'DAWAMI:STUDENT:$uniId',
+                              );
+
+                          final enrolledFp = await showDialog<String>(
                             context: context,
                             builder: (_) => FingerprintEnrollmentDialog(
-                              student: widget.student!,
-                              isReEnrollment: widget.student!.hasFingerprint,
+                              student: candidateStudent,
+                              isReEnrollment: widget.student?.hasFingerprint ?? false,
                             ),
                           );
-                          if (!mounted) return;
-                          final updated = repo.students.firstWhere(
-                            (s) => s.id == widget.student!.id,
-                            orElse: () => widget.student!,
-                          );
-                          if (updated.fingerprintId != null) {
+
+                          if (enrolledFp != null && enrolledFp.isNotEmpty) {
                             setState(() {
-                              _fpIdController.text = updated.fingerprintId!;
+                              _fpIdController.text = enrolledFp;
                             });
                           }
                         },
                       ),
                     ],
-                  ],
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

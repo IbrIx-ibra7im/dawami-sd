@@ -275,41 +275,6 @@ class UpdateDialog extends StatelessWidget {
                       ),
                     ),
 
-                  const SizedBox(height: 10),
-
-                  // Download Link Card
-                  InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      UpdateService.instance.openUpdateUrl(releaseInfo.htmlUrl);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.link_rounded, size: 16, color: AppColors.primaryBlue),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              releaseInfo.htmlUrl,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.primaryBlue,
-                                decoration: TextDecoration.underline,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const Icon(Icons.open_in_new_rounded, size: 14, color: AppColors.primaryBlue),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

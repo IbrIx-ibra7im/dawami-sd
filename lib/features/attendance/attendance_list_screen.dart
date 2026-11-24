@@ -9,8 +9,6 @@ import '../../data/remote/supabase_service.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 import '../../widgets/sync_status_card.dart';
-import '../settings/settings_screen.dart';
-import 'manual_attendance_dialog.dart';
 import 'audit_logs_screen.dart';
 
 class AttendanceListScreen extends StatefulWidget {
@@ -216,29 +214,10 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
             ),
             child: Row(
               children: [
-                if (RoleManager.canRecordAttendance(repo.currentRole))
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('+ حضور يدوي'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        showDialog(
-                          context: context,
-                          builder: (_) => const ManualAttendanceDialog(),
-                        );
-                      },
-                    ),
-                  ),
-                const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.list_alt, size: 18),
-                    label: const Text('سجل التعديلات'),
+                    label: const Text('سجل التعديلات والتحقق البيومتري'),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
@@ -977,20 +956,6 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                 ),
                 onPressed: _isSyncing ? null : () => _syncDatabases(context, repo),
               ),
-              const SizedBox(width: 6),
-              // Open Settings Sheet Button
-              ElevatedButton.icon(
-                icon: const Icon(Icons.settings_outlined, size: 14),
-                label: const Text('الإعدادات', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                onPressed: () => _openAttendanceSettingsSheet(context),
-              ),
             ],
           ),
         ],
@@ -1321,28 +1286,6 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                         ),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Open Full System Settings Screen
-                  ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: isDark ? AppColors.borderDark : AppColors.borderLight),
-                    ),
-                    tileColor: isDark ? AppColors.surfaceDark : Colors.white,
-                    leading: const Icon(Icons.settings_rounded, color: AppColors.primaryBlue),
-                    title: const Text('فتح الإعدادات العامة للنظام', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    subtitle: const Text('تغيير اسم الجامعة، كود تصحيح الصلاحيات SQL، وتحديثات التطبيق', style: TextStyle(fontSize: 11)),
-                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
-                      );
-                    },
                   ),
                 ],
               ),

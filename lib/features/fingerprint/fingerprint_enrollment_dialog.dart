@@ -86,15 +86,17 @@ class _FingerprintEnrollmentDialogState extends State<FingerprintEnrollmentDialo
         throw Exception('عذراً، هذه البصمة مسجلة مسبقاً في النظام لطالب آخر ولا يمكن تكرارها.');
       }
 
-      // Step 4: حفظ البصمة وربطها مباشرة بالطالب
+      // Step 4: حفظ البصمة وربطها مباشرة بالطالب إذا كان موجوداً مسبقاً في قاعدة البيانات
       final templateHash = 'TMP_${widget.student.universityId}_${DateTime.now().millisecondsSinceEpoch}';
 
-      await repo.enrollStudentFingerprint(
-        student: widget.student,
-        fingerprintId: generatedFpId,
-        templateHash: templateHash,
-        quality: score,
-      );
+      if (widget.student.id != null) {
+        await repo.enrollStudentFingerprint(
+          student: widget.student,
+          fingerprintId: generatedFpId,
+          templateHash: templateHash,
+          quality: score,
+        );
+      }
 
       setState(() {
         _currentStep = 3;
@@ -285,7 +287,18 @@ class _FingerprintEnrollmentDialogState extends State<FingerprintEnrollmentDialo
           onPressed: () => Navigator.pop(context, _enrolledFpId),
           child: Text(_currentStep == 3 ? 'إغلاق' : 'إلغاء'),
         ),
-        if (_currentStep != 3)
+        if (_currentStep == 3)
+          ElevatedButton.icon(
+            icon: const Icon(Icons.check_circle_rounded, size: 18),
+            label: const Text('اعتماد البصمة ومتابعة الحفظ'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+            onPressed: () => Navigator.pop(context, _enrolledFpId),
+          )
+        else
           ElevatedButton.icon(
             icon: const Icon(Icons.fingerprint_rounded, size: 18),
             label: Text(_errorMessage != null ? 'إعادة المحاولة' : 'بدء المسح الآن'),
