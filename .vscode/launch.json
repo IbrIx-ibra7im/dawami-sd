@@ -5,19 +5,28 @@
       "name": "دوامي (Chrome Web) ⚡ مستحسن للتشغيل الفوري",
       "request": "launch",
       "type": "dart",
-      "deviceId": "chrome"
+      "deviceId": "chrome",
+      "args": [
+        "--no-tree-shake-icons"
+      ]
     },
     {
       "name": "دوامي (Edge Web)",
       "request": "launch",
       "type": "dart",
-      "deviceId": "edge"
+      "deviceId": "edge",
+      "args": [
+        "--no-tree-shake-icons"
+      ]
     },
     {
       "name": "دوامي (Windows Desktop)",
       "request": "launch",
       "type": "dart",
-      "deviceId": "windows"
+      "deviceId": "windows",
+      "args": [
+        "--no-tree-shake-icons"
+      ]
     }
   ]
 }
