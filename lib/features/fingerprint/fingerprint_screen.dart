@@ -28,7 +28,8 @@ class FingerprintScreen extends StatefulWidget {
   State<FingerprintScreen> createState() => _FingerprintScreenState();
 }
 
-class _FingerprintScreenState extends State<FingerprintScreen> with TickerProviderStateMixin {
+class _FingerprintScreenState extends State<FingerprintScreen>
+    with TickerProviderStateMixin {
   late AnimationController _animController;
   late Animation<double> _scaleAnimation;
 
@@ -82,7 +83,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
       if (!autoCheck || !mounted) return;
 
       final result = await updateService.checkForUpdate();
-      if (result.status == UpdateCheckStatus.updateAvailable && result.releaseInfo != null && mounted) {
+      if (result.status == UpdateCheckStatus.updateAvailable &&
+          result.releaseInfo != null &&
+          mounted) {
         UpdateDialog.show(
           context,
           currentVersion: result.currentVersion,
@@ -107,7 +110,8 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     if (event is! KeyDownEvent) return;
 
     final now = DateTime.now();
-    if (_lastKeyTime != null && now.difference(_lastKeyTime!).inMilliseconds > 250) {
+    if (_lastKeyTime != null &&
+        now.difference(_lastKeyTime!).inMilliseconds > 250) {
       _keyBuffer.clear();
     }
     _lastKeyTime = now;
@@ -126,7 +130,10 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
     }
   }
 
-  Future<void> _scanFingerprint({Student? specificStudent, bool useDeviceBiometrics = true}) async {
+  Future<void> _scanFingerprint({
+    Student? specificStudent,
+    bool useDeviceBiometrics = true,
+  }) async {
     setState(() {
       _errorMessage = null;
       _attendedStudent = null;
@@ -147,14 +154,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
           method: 'fingerprint',
         );
         // تسجيل عملية تحقق بيومتري ناجحة
-        await repo.logBiometricVerification(BiometricVerificationLog(
-          studentId: matchedStudent.id!,
-          method: 'fingerprint_1_N',
-          status: 'success',
-          reason: 'تم تطابق البصمة وتسجيل الحضور بنجاح',
-          timestamp: DateTime.now().toIso8601String(),
-          deviceModel: fpProvider.selectedDeviceModel,
-        ));
+        await repo.logBiometricVerification(
+          BiometricVerificationLog(
+            studentId: matchedStudent.id!,
+            method: 'fingerprint_1_N',
+            status: 'success',
+            reason: 'تم تطابق البصمة وتسجيل الحضور بنجاح',
+            timestamp: DateTime.now().toIso8601String(),
+            deviceModel: fpProvider.selectedDeviceModel,
+          ),
+        );
         setState(() {
           _attendedStudent = matchedStudent;
           _lastAttendanceRecord = record;
@@ -166,14 +175,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
       }
     } else {
       // تسجيل عملية تحقق بيومتري فاشلة
-      await repo.logBiometricVerification(BiometricVerificationLog(
-        studentId: 0,
-        method: 'fingerprint_1_N',
-        status: 'failed',
-        reason: 'لم يتم التحقق من البصمة أو تم إلغاء المسح',
-        timestamp: DateTime.now().toIso8601String(),
-        deviceModel: fpProvider.selectedDeviceModel,
-      ));
+      await repo.logBiometricVerification(
+        BiometricVerificationLog(
+          studentId: 0,
+          method: 'fingerprint_1_N',
+          status: 'failed',
+          reason: 'لم يتم التحقق من البصمة أو تم إلغاء المسح',
+          timestamp: DateTime.now().toIso8601String(),
+          deviceModel: fpProvider.selectedDeviceModel,
+        ),
+      );
       setState(() {
         _errorMessage = 'لم يتم التحقق من البصمة أو تم إلغاء المسح';
       });
@@ -195,14 +206,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
 
     if (student == null) {
       setState(() {
-        _errorMessage = 'الرمز غير مسجّل: لم يتم العثور على طالب بالرمز ($cleanCode)';
+        _errorMessage =
+            'الرمز غير مسجّل: لم يتم العثور على طالب بالرمز ($cleanCode)';
       });
       return;
     }
 
     if (student.status != 'نشط') {
       setState(() {
-        _errorMessage = 'عذراً، الطالب ${student.fullName} حالته غير نشطة (${student.status})';
+        _errorMessage =
+            'عذراً، الطالب ${student.fullName} حالته غير نشطة (${student.status})';
       });
       return;
     }
@@ -213,14 +226,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
         method: 'qr',
       );
       // تسجيل عملية تحقق ناجحة بالباركود
-      await repo.logBiometricVerification(BiometricVerificationLog(
-        studentId: student.id!,
-        method: 'barcode',
-        status: 'success',
-        reason: 'تم التعرف على الطالب وتسجيل الحضور عبر الباركود',
-        timestamp: DateTime.now().toIso8601String(),
-        deviceModel: 'USB Barcode Reader',
-      ));
+      await repo.logBiometricVerification(
+        BiometricVerificationLog(
+          studentId: student.id!,
+          method: 'barcode',
+          status: 'success',
+          reason: 'تم التعرف على الطالب وتسجيل الحضور عبر الباركود',
+          timestamp: DateTime.now().toIso8601String(),
+          deviceModel: 'USB Barcode Reader',
+        ),
+      );
       setState(() {
         _attendedStudent = student;
         _lastAttendanceRecord = record;
@@ -265,7 +280,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             children: [
               Text(
                 'تنبيه فني هام:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                  fontSize: 14,
+                ),
               ),
               SizedBox(height: 4),
               Text(
@@ -275,7 +294,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               Divider(height: 24),
               Text(
                 'الأجهزة المتوافقة المعتمدة:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryBlue, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryBlue,
+                  fontSize: 14,
+                ),
               ),
               SizedBox(height: 4),
               Text(
@@ -285,7 +308,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               Divider(height: 24),
               Text(
                 'حزم التطوير (SDK) وقوالب البصمة:',
-                style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryBlue, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryBlue,
+                  fontSize: 14,
+                ),
               ),
               SizedBox(height: 4),
               Text(
@@ -301,7 +328,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('حسناً'),
           ),
@@ -349,8 +378,8 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                 (fpEnabled && bcEnabled)
                     ? 'تسجيل الحضور بالبصمة الحيوية والباركود'
                     : (fpEnabled
-                        ? 'تسجيل الحضور بالبصمة الحيوية'
-                        : 'تسجيل الحضور ببطاقة الباركود الذكية'),
+                          ? 'تسجيل الحضور بالبصمة الحيوية'
+                          : 'تسجيل الحضور ببطاقة الباركود الذكية'),
               ),
             ],
           ),
@@ -358,11 +387,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
           leading: widget.isInitialScreen
               ? null
               : (Navigator.canPop(context)
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  : null),
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    : null),
           actions: [
             // شارة حالة الجهاز (تتكيف حسب تفعيل البصمة أو الباركود)
             if (fpEnabled)
@@ -370,7 +399,10 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.turquoise.withAlpha(30),
                       borderRadius: BorderRadius.circular(14),
@@ -378,7 +410,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.circle, size: 8, color: AppColors.success),
+                        const Icon(
+                          Icons.circle,
+                          size: 8,
+                          color: AppColors.success,
+                        ),
                         const SizedBox(width: 6),
                         Text(
                           fpProvider.isDeviceBiometricsSupported
@@ -400,7 +436,10 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.purple.withAlpha(35),
                       borderRadius: BorderRadius.circular(14),
@@ -408,7 +447,11 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.qr_code_scanner_rounded, size: 14, color: Colors.purpleAccent),
+                        Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 14,
+                          color: Colors.purpleAccent,
+                        ),
                         SizedBox(width: 6),
                         Text(
                           'الباركود نشط',
@@ -428,7 +471,10 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: ElevatedButton.icon(
-                  icon: const Icon(Icons.admin_panel_settings_rounded, size: 16),
+                  icon: const Icon(
+                    Icons.admin_panel_settings_rounded,
+                    size: 16,
+                  ),
                   label: const Text(
                     'لوحة التحكم (تسجيل الدخول)',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
@@ -436,8 +482,13 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     elevation: 2,
                   ),
                   onPressed: () {
@@ -460,7 +511,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const AttendanceListScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const AttendanceListScreen(),
+                  ),
                 );
               },
             ),
@@ -473,46 +526,95 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               if (widget.isInitialScreen)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   color: AppColors.primaryBlue.withAlpha(20),
-                  child: Row(
-                    children: [
-                      if (fpEnabled) ...[
-                        const Icon(Icons.fingerprint_rounded, color: AppColors.primaryBlue, size: 22),
-                        const SizedBox(width: 4),
-                      ],
-                      if (bcEnabled) ...[
-                        const Icon(Icons.qr_code_scanner_rounded, color: Colors.purple, size: 20),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Text(
-                          (fpEnabled && bcEnabled)
-                              ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بصمة حيوية • بطاقة باركود ذكية)'
-                              : (fpEnabled
-                                  ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (البصمة الحيوية)'
-                                  : 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بطاقة الباركود الذكية)'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                      ),
-                      ElevatedButton.icon(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final title = Row(
+                        children: [
+                          if (fpEnabled) ...[
+                            const Icon(
+                              Icons.fingerprint_rounded,
+                              color: AppColors.primaryBlue,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          if (bcEnabled) ...[
+                            const Icon(
+                              Icons.qr_code_scanner_rounded,
+                              color: Colors.purple,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Text(
+                              (fpEnabled && bcEnabled)
+                                  ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بصمة حيوية • بطاقة باركود ذكية)'
+                                  : (fpEnabled
+                                        ? 'نظام تسجيل الحضور والانصراف المباشر للطلاب (البصمة الحيوية)'
+                                        : 'نظام تسجيل الحضور والانصراف المباشر للطلاب (بطاقة الباركود الذكية)'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+
+                      final loginButton = ElevatedButton.icon(
                         icon: const Icon(Icons.login_rounded, size: 15),
-                        label: const Text('دخول لوحة التحكم', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        label: const Text(
+                          'دخول لوحة التحكم',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryBlue,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           elevation: 0,
                         ),
                         onPressed: () {
                           repo.logout();
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
                           );
                         },
-                      ),
-                    ],
+                      );
+
+                      if (constraints.maxWidth < 600) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            title,
+                            const SizedBox(height: 8),
+                            loginButton,
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          Expanded(child: title),
+                          const SizedBox(width: 12),
+                          loginButton,
+                        ],
+                      );
+                    },
                   ),
                 ),
 
@@ -521,47 +623,108 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               // 2. Attendance Mode Switcher (يظهر فقط في حال تفعيل كلتا الوسيلتين معاً بواسطة الإدارة)
               if (fpEnabled && bcEnabled)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   color: isDark ? AppColors.surfaceDark : Colors.white,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Row(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final segmentedButton =
+                          SegmentedButton<AttendanceInputMode>(
+                            segments: const [
+                              ButtonSegment(
+                                value: AttendanceInputMode.dual,
+                                icon: Icon(Icons.hub_rounded, size: 16),
+                                label: Text(
+                                  'المزدوج (بصمة + باركود)',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              ButtonSegment(
+                                value: AttendanceInputMode.fingerprint,
+                                icon: Icon(Icons.fingerprint_rounded, size: 16),
+                                label: Text(
+                                  'بصمة فقط',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              ButtonSegment(
+                                value: AttendanceInputMode.barcode,
+                                icon: Icon(
+                                  Icons.qr_code_scanner_rounded,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  'باركود فقط',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                            selected: {activeMode},
+                            onSelectionChanged: (newSelection) {
+                              setState(() {
+                                _currentMode = newSelection.first;
+                              });
+                            },
+                          );
+
+                      const header = Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.touch_app_rounded, size: 18, color: AppColors.primaryBlue),
+                          Icon(
+                            Icons.touch_app_rounded,
+                            size: 18,
+                            color: AppColors.primaryBlue,
+                          ),
                           SizedBox(width: 6),
                           Text(
                             'طريقة التسجيل الحالية:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
                           ),
                         ],
-                      ),
-                      SegmentedButton<AttendanceInputMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: AttendanceInputMode.dual,
-                            icon: Icon(Icons.hub_rounded, size: 16),
-                            label: Text('المزدوج (بصمة + باركود)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ),
-                          ButtonSegment(
-                            value: AttendanceInputMode.fingerprint,
-                            icon: Icon(Icons.fingerprint_rounded, size: 16),
-                            label: Text('بصمة فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          ),
-                          ButtonSegment(
-                            value: AttendanceInputMode.barcode,
-                            icon: Icon(Icons.qr_code_scanner_rounded, size: 16),
-                            label: Text('باركود فقط', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      );
+
+                      if (constraints.maxWidth < 700) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            header,
+                            const SizedBox(height: 8),
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: segmentedButton,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          header,
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: segmentedButton,
+                            ),
                           ),
                         ],
-                        selected: {activeMode},
-                        onSelectionChanged: (newSelection) {
-                          setState(() {
-                            _currentMode = newSelection.first;
-                          });
-                        },
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
 
@@ -571,10 +734,20 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               Expanded(
                 child: Center(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 20,
+                    ),
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 850),
-                      child: _buildMainInteractiveArea(fpProvider, repo, isDark, fpEnabled, bcEnabled, activeMode),
+                      child: _buildMainInteractiveArea(
+                        fpProvider,
+                        repo,
+                        isDark,
+                        fpEnabled,
+                        bcEnabled,
+                        activeMode,
+                      ),
                     ),
                   ),
                 ),
@@ -609,12 +782,19 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.danger,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     _errorMessage!,
-                    style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: AppColors.danger,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -635,7 +815,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                         height: 380,
                         width: 1,
                         margin: const EdgeInsets.symmetric(horizontal: 16),
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight,
                       ),
                       Expanded(child: _buildBarcodeArea(repo, isDark)),
                     ],
@@ -689,14 +871,20 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                fpProvider.isDeviceBiometricsSupported ? Icons.fingerprint : Icons.devices_rounded,
+                fpProvider.isDeviceBiometricsSupported
+                    ? Icons.fingerprint
+                    : Icons.devices_rounded,
                 color: AppColors.turquoise,
                 size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 'الوضع: ${fpProvider.selectedDeviceModel}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkBlue),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: AppColors.darkBlue,
+                ),
               ),
             ],
           ),
@@ -718,17 +906,21 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                 border: Border.all(
                   color: isScanning
                       ? AppColors.warning
-                      : (_attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
-                          ? AppColors.success
-                          : AppColors.turquoise),
+                      : (_attendedStudent != null &&
+                                _lastAttendanceRecord?.method == 'fingerprint'
+                            ? AppColors.success
+                            : AppColors.turquoise),
                   width: 6,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
-                            ? AppColors.success
-                            : AppColors.turquoise)
-                        .withAlpha(60),
+                    color:
+                        (_attendedStudent != null &&
+                                    _lastAttendanceRecord?.method ==
+                                        'fingerprint'
+                                ? AppColors.success
+                                : AppColors.turquoise)
+                            .withAlpha(60),
                     blurRadius: 24,
                     spreadRadius: 3,
                   ),
@@ -736,11 +928,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               ),
               child: Center(
                 child: isScanning
-                    ? const CircularProgressIndicator(color: AppColors.turquoise, strokeWidth: 4)
+                    ? const CircularProgressIndicator(
+                        color: AppColors.turquoise,
+                        strokeWidth: 4,
+                      )
                     : Icon(
                         Icons.fingerprint_rounded,
                         size: 96,
-                        color: _attendedStudent != null && _lastAttendanceRecord?.method == 'fingerprint'
+                        color:
+                            _attendedStudent != null &&
+                                _lastAttendanceRecord?.method == 'fingerprint'
                             ? AppColors.success
                             : AppColors.turquoise,
                       ),
@@ -761,8 +958,13 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.turquoise,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: () => _scanFingerprint(useDeviceBiometrics: true),
             ),
@@ -772,8 +974,13 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
               label: const Text('لمس / USB'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryBlue,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: () => _scanFingerprint(useDeviceBiometrics: false),
             ),
@@ -821,11 +1028,19 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.qr_code_scanner_rounded, color: Colors.purple, size: 18),
+              Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Colors.purple,
+                size: 18,
+              ),
               SizedBox(width: 8),
               Text(
                 'قارئ الباركود والبطاقات الجامعية',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.purple,
+                ),
               ),
             ],
           ),
@@ -846,17 +1061,21 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                   color: isDark ? AppColors.surfaceDark : Colors.white,
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                    color:
+                        _attendedStudent != null &&
+                            _lastAttendanceRecord?.method == 'qr'
                         ? AppColors.success
                         : Colors.purple.withAlpha(140),
                     width: 4,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: (_attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
-                              ? AppColors.success
-                              : Colors.purple)
-                          .withAlpha(40),
+                      color:
+                          (_attendedStudent != null &&
+                                      _lastAttendanceRecord?.method == 'qr'
+                                  ? AppColors.success
+                                  : Colors.purple)
+                              .withAlpha(40),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -868,20 +1087,29 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     Icon(
                       Icons.qr_code_2_rounded,
                       size: 80,
-                      color: _attendedStudent != null && _lastAttendanceRecord?.method == 'qr'
+                      color:
+                          _attendedStudent != null &&
+                              _lastAttendanceRecord?.method == 'qr'
                           ? AppColors.success
                           : Colors.purple,
                     ),
                     const SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.purple.withAlpha(20),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Text(
                         'مرر بطاقة الطالب هنا',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple,
+                        ),
                       ),
                     ),
                   ],
@@ -899,7 +1127,13 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                       height: 3,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Colors.transparent, Colors.redAccent, Colors.red, Colors.redAccent, Colors.transparent],
+                          colors: [
+                            Colors.transparent,
+                            Colors.redAccent,
+                            Colors.red,
+                            Colors.redAccent,
+                            Colors.transparent,
+                          ],
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -930,7 +1164,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
             backgroundColor: Colors.purple,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
             elevation: 2,
           ),
           onPressed: _openCameraBarcodeScanner,
@@ -975,7 +1211,8 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
         ),
         boxShadow: [
           BoxShadow(
-            color: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(30),
+            color: (isCheckOut ? AppColors.primaryBlue : AppColors.success)
+                .withAlpha(30),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -985,7 +1222,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
         children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(30),
+            backgroundColor:
+                (isCheckOut ? AppColors.primaryBlue : AppColors.success)
+                    .withAlpha(30),
             child: Icon(
               isCheckOut ? Icons.logout_rounded : Icons.check_circle_rounded,
               color: isCheckOut ? AppColors.primaryBlue : AppColors.success,
@@ -1002,22 +1241,34 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     Expanded(
                       child: Text(
                         _attendedStudent!.fullName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: isQr ? Colors.purple.withAlpha(20) : AppColors.turquoise.withAlpha(20),
+                        color: isQr
+                            ? Colors.purple.withAlpha(20)
+                            : AppColors.turquoise.withAlpha(20),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: isQr ? Colors.purple : AppColors.turquoise),
+                        border: Border.all(
+                          color: isQr ? Colors.purple : AppColors.turquoise,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            isQr ? Icons.qr_code_2_rounded : Icons.fingerprint_rounded,
+                            isQr
+                                ? Icons.qr_code_2_rounded
+                                : Icons.fingerprint_rounded,
                             size: 14,
                             color: isQr ? Colors.purple : AppColors.turquoise,
                           ),
@@ -1035,9 +1286,16 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: (isCheckOut ? AppColors.primaryBlue : AppColors.success).withAlpha(20),
+                        color:
+                            (isCheckOut
+                                    ? AppColors.primaryBlue
+                                    : AppColors.success)
+                                .withAlpha(20),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
@@ -1045,7 +1303,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: isCheckOut ? AppColors.primaryBlue : AppColors.success,
+                          color: isCheckOut
+                              ? AppColors.primaryBlue
+                              : AppColors.success,
                         ),
                       ),
                     ),
@@ -1060,21 +1320,33 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.success.withAlpha(20),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'وقت الحضور: ${DateHelper.formatTimeString(_lastAttendanceRecord?.checkIn)}',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
-                        color: isCheckOut ? AppColors.primaryBlue.withAlpha(20) : Colors.grey.withAlpha(20),
+                        color: isCheckOut
+                            ? AppColors.primaryBlue.withAlpha(20)
+                            : Colors.grey.withAlpha(20),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -1084,7 +1356,9 @@ class _FingerprintScreenState extends State<FingerprintScreen> with TickerProvid
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          color: isCheckOut ? AppColors.primaryBlue : Colors.grey.shade600,
+                          color: isCheckOut
+                              ? AppColors.primaryBlue
+                              : Colors.grey.shade600,
                         ),
                       ),
                     ),

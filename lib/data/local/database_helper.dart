@@ -630,15 +630,28 @@ class DatabaseHelper {
     return res;
   }
 
-  Future<int> deleteStudent(int id) async {
+  Future<int> deleteStudent(int id, {Student? student}) async {
     final db = await database;
-    final res = await db.delete('students', where: 'id = ?', whereArgs: [id]);
+    final res = await db.transaction((txn) async {
+      await txn.delete('attendance', where: 'student_id = ?', whereArgs: [id]);
+      await txn.delete(
+        'student_fingerprints',
+        where: 'student_id = ?',
+        whereArgs: [id],
+      );
+      await txn.delete(
+        'biometric_verification_logs',
+        where: 'student_id = ?',
+        whereArgs: [id],
+      );
+      return txn.delete('students', where: 'id = ?', whereArgs: [id]);
+    });
 
     await queueSyncItem(
       operation: 'DELETE',
       tableName: 'students',
       recordId: id.toString(),
-      payload: {'id': id},
+      payload: {...?student?.toMap(), 'id': id},
     );
 
     return res;

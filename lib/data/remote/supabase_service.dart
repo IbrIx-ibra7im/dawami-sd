@@ -289,8 +289,23 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
             await _client!.from('dawami_records').upsert(record, onConflict: 'record_type,record_key');
             break;
           case 'DELETE':
-            final key = record['record_key'] ?? payload['university_id'] ?? item.recordId;
-            await _client!.from('dawami_records').delete().eq('record_type', 'student').eq('record_key', key);
+            final key = payload['record_key'] ??
+                payload['university_id'] ??
+                payload['student_number'] ??
+                record['record_key'];
+            if (key == null || key.toString().isEmpty) {
+              throw StateError('Student deletion is missing its university ID');
+            }
+            await _client!
+                .from('dawami_records')
+                .delete()
+                .eq('record_type', 'student')
+                .eq('record_key', key.toString());
+            await _client!
+                .from('dawami_records')
+                .delete()
+                .eq('record_type', 'attendance')
+                .eq('student_number', key.toString());
             break;
         }
         return true;
@@ -415,10 +430,18 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   /// Delete student from single unified table (dawami_records)
   Future<bool> deleteStudent(int studentId, [String? universityId]) async {
     if (!_isConfigured || _client == null) return false;
+    if (universityId == null || universityId.isEmpty) return false;
     try {
-      if (universityId != null && universityId.isNotEmpty) {
-        await _client!.from('dawami_records').delete().eq('record_type', 'student').eq('student_number', universityId);
-      }
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'student')
+          .eq('record_key', universityId);
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'attendance')
+          .eq('student_number', universityId);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteStudent error: $e');
@@ -427,10 +450,20 @@ CREATE INDEX IF NOT EXISTS idx_dawami_records_sync_status ON public.dawami_recor
   }
 
   /// Delete multiple students from single unified table (dawami_records)
-  Future<bool> deleteMultipleStudents(List<int> studentIds) async {
-    if (!_isConfigured || _client == null || studentIds.isEmpty) return false;
+  Future<bool> deleteMultipleStudents(List<String> universityIds) async {
+    final ids = universityIds.where((id) => id.isNotEmpty).toSet().toList();
+    if (!_isConfigured || _client == null || ids.isEmpty) return false;
     try {
-      // In Hive/dawami_records studentIds are local integer keys
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'student')
+          .inFilter('record_key', ids);
+      await _client!
+          .from('dawami_records')
+          .delete()
+          .eq('record_type', 'attendance')
+          .inFilter('student_number', ids);
       return true;
     } catch (e) {
       if (kDebugMode) print('Supabase deleteMultipleStudents error: $e');

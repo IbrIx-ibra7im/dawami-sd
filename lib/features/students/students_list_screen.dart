@@ -522,22 +522,25 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // 1. زر التعديل (Edit Button)
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.edit_rounded, size: 14),
-                            label: const Text('تعديل', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryBlue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
+                          Tooltip(
+                            message: 'تعديل بيانات الطالب',
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.edit_rounded, size: 14),
+                              label: const Text('تعديل البيانات', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                elevation: 0,
+                              ),
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => AddEditStudentDialog(student: s),
+                                );
+                              },
                             ),
-                            onPressed: () {
-                              showDialog(
-                                context: context,
-                                builder: (_) => AddEditStudentDialog(student: s),
-                              );
-                            },
                           ),
                           const SizedBox(width: 6),
                           // 2. زر البصمة (Fingerprint Enrollment Button)
@@ -694,25 +697,28 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
             children: [
               // 1. زر التعديل (Edit Button)
               Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.edit_rounded, size: 15),
-                  label: const Text(
-                    'تعديل',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                child: Tooltip(
+                  message: 'تعديل بيانات الطالب',
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.edit_rounded, size: 15),
+                    label: const Text(
+                      'تعديل',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => AddEditStudentDialog(student: student),
+                      );
+                    },
                   ),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    backgroundColor: AppColors.primaryBlue,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    elevation: 0,
-                  ),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => AddEditStudentDialog(student: student),
-                    );
-                  },
                 ),
               ),
               const SizedBox(width: 6),

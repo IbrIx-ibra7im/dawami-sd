@@ -60,6 +60,7 @@ class Student {
   Map<String, dynamic> toMap() {
     return {
       if (id != null) 'id': id,
+      if (uuid != null) 'uuid': uuid,
       'university_id': universityId,
       'student_number': universityId, // Alias for Supabase column requirement
       'full_name': fullName,
@@ -102,9 +103,6 @@ class Student {
       'status': status,
       'qr_code': qrCode,
       'fingerprint_id': fingerprintId,
-      'fingerprint_status': fingerprintStatus,
-      'fingerprint_quality': fingerprintQuality,
-      'fingerprint_enrolled_at': fingerprintEnrolledAt,
       'photo_url': photoUrl,
     };
   }

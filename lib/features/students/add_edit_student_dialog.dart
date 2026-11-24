@@ -283,6 +283,7 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
 
       final student = Student(
         id: widget.student?.id,
+        uuid: widget.student?.uuid,
         universityId: uniId,
         fullName: _nameController.text.trim(),
         phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : '0000000000',
@@ -294,6 +295,11 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         status: _status,
         qrCode: 'DAWAMI:STUDENT:$uniId',
         fingerprintId: fpId.isNotEmpty ? fpId : null,
+        fingerprintStatus: fpId.isNotEmpty
+            ? (widget.student?.fingerprintStatus ?? 'مسجلة')
+            : 'غير مسجلة',
+        fingerprintQuality: widget.student?.fingerprintQuality,
+        fingerprintEnrolledAt: widget.student?.fingerprintEnrolledAt,
         photoUrl: _photoController.text.trim().isNotEmpty ? _photoController.text.trim() : null,
         collegeName: collegeName,
         departmentName: deptName,

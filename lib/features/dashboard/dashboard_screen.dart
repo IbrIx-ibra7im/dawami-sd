@@ -13,7 +13,6 @@ import '../attendance/attendance_list_screen.dart';
 import '../reports/reports_screen.dart';
 import '../attendance/audit_logs_screen.dart';
 import '../authentication/login_screen.dart';
-import '../qr_scanner/qr_scanner_screen.dart';
 import '../fingerprint/fingerprint_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -317,18 +316,6 @@ class DashboardScreen extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const StudentCredentialsScreen()),
-          );
-        },
-      ),
-      _ActionData(
-        title: 'مسح الباركود والـ QR',
-        subtitle: 'مسح فوري لتسجيل الحضور',
-        icon: Icons.qr_code_scanner_rounded,
-        color: AppColors.primaryBlue,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const QrScannerScreen()),
           );
         },
       ),

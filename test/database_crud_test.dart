@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -175,6 +176,7 @@ void main() {
       await repo.addStudent(student);
       final added = repo.students.firstWhere((s) => s.universityId == uniqueUniId);
       final studentId = added.id!;
+      await repo.registerAttendance(student: added, method: 'manual');
 
       // Update
       final updated = added.copyWith(fullName: 'طالب تم تحديث اسمه');
@@ -189,6 +191,17 @@ void main() {
 
       final fromHive = await HiveHelper.instance.getStudentById(studentId);
       expect(fromHive, isNull);
+      final remainingAttendance = await HiveHelper.instance.getAttendanceRecords();
+      expect(remainingAttendance.any((record) => record.studentId == studentId), isFalse);
+
+      final deleteItem = (await HiveHelper.instance.getSyncQueueItems()).lastWhere(
+        (item) =>
+            item.tableName == 'students' &&
+            item.recordId == studentId.toString() &&
+            item.operation == 'DELETE',
+      );
+      final deletePayload = jsonDecode(deleteItem.payload) as Map<String, dynamic>;
+      expect(deletePayload['university_id'], equals(uniqueUniId));
     });
 
     test('deleteMultipleStudents batch deletes selected students correctly', () async {

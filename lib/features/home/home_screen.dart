@@ -8,7 +8,6 @@ import '../../core/utils/date_helper.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 
-import '../qr_scanner/qr_scanner_screen.dart';
 import '../fingerprint/fingerprint_screen.dart';
 import '../attendance/attendance_list_screen.dart';
 import '../students/students_list_screen.dart';
@@ -278,28 +277,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    // Big Button 1: QR Code Attendance
-                    _buildMainActionButton(
-                      context: context,
-                      title: AppStrings.scanQrButton,
-                      subtitle: AppStrings.scanQrSubtitle,
-                      icon: Icons.qr_code_scanner_rounded,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E4FA3), Color(0xFF2563EB)],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Big Button 2: Fingerprint Attendance
+                    // Big Button: Fingerprint Attendance
                     _buildMainActionButton(
                       context: context,
                       title: AppStrings.fingerprintButton,

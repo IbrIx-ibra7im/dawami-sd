@@ -6,7 +6,6 @@ import '../../core/utils/date_helper.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 
-import '../qr_scanner/qr_scanner_screen.dart';
 import '../fingerprint/fingerprint_screen.dart';
 import '../attendance/manual_attendance_dialog.dart';
 
@@ -116,7 +115,7 @@ class DesktopHomeContent extends StatelessWidget {
                   value: '${repo.totalStudentsCount}',
                   color: AppColors.primaryBlue,
                   icon: Icons.people_alt_rounded,
-                  onTap: () => onNavigate(5), // Students
+                  onTap: () => onNavigate(4), // Students
                 ),
               ),
               const SizedBox(width: 16),
@@ -126,7 +125,7 @@ class DesktopHomeContent extends StatelessWidget {
                   value: '${repo.presentCount}',
                   color: AppColors.success,
                   icon: Icons.check_circle_outline,
-                  onTap: () => onNavigate(4), // Attendance
+                  onTap: () => onNavigate(3), // Attendance
                 ),
               ),
               const SizedBox(width: 16),
@@ -136,7 +135,7 @@ class DesktopHomeContent extends StatelessWidget {
                   value: '${repo.lateCount}',
                   color: AppColors.warning,
                   icon: Icons.access_time_rounded,
-                  onTap: () => onNavigate(4), // Attendance
+                  onTap: () => onNavigate(3), // Attendance
                 ),
               ),
               const SizedBox(width: 16),
@@ -146,7 +145,7 @@ class DesktopHomeContent extends StatelessWidget {
                   value: '${repo.absentCount}',
                   color: AppColors.danger,
                   icon: Icons.cancel_outlined,
-                  onTap: () => onNavigate(4), // Attendance
+                  onTap: () => onNavigate(3), // Attendance
                 ),
               ),
             ],
@@ -154,162 +153,68 @@ class DesktopHomeContent extends StatelessWidget {
 
           const SizedBox(height: 24),
 
-          // 3. Side-by-Side Large Action Hero Cards (Desktop Optimized)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // QR Attendance Hero Card
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
+          // 3. Large Action Hero Card (Desktop Fingerprint Attendance)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isDark ? AppColors.borderDark : AppColors.borderLight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.turquoise.withAlpha(20),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark : Colors.white,
+                    color: AppColors.turquoise.withAlpha(25),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryBlue.withAlpha(20),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
                   ),
+                  child: const Icon(Icons.fingerprint_rounded, color: AppColors.turquoise, size: 40),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryBlue.withAlpha(25),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.primaryBlue, size: 32),
-                          ),
-                          const SizedBox(width: 14),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'تسجيل الحضور عبر QR Code',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                ),
-                                Text(
-                                  'امسح بطاقة الطالب عبر الكاميرا أو القارئ الضوئي',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
                       const Text(
-                        'يدعم المسح الفوري والتأكد من نشاط الطالب مع الحفظ المحلي الفوري والتحقق من عدم تكرار الحضور.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                        'تسجيل الحضور بالبصمة',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
                       ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.fullscreen),
-                        label: const Text('فتح واجهة مسح الـ QR'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                          );
-                        },
+                      const SizedBox(height: 4),
+                      Text(
+                        'جهاز البصمة المتصل: ${repo.deviceName} • متوافق مع أجهزة ZKTeco وأجهزة البصمة المعتمدة مع مطابقة المعرف الرقمي للبصمة مباشرة.',
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 20),
-
-              // Fingerprint Attendance Hero Card
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceDark : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.turquoise.withAlpha(20),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+                const SizedBox(width: 20),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.touch_app),
+                  label: const Text('فتح واجهة قراءة البصمة'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.turquoise,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.turquoise.withAlpha(25),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(Icons.fingerprint_rounded, color: AppColors.turquoise, size: 32),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'تسجيل الحضور بالبصمة',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                ),
-                                Text(
-                                  'جهاز البصمة المتصل: ${repo.deviceName}',
-                                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'متوافق مع أجهزة ZKTeco وأجهزة البصمة المعتمدة مع مطابقة المعرف الرقمي للبصمة مباشرة.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.touch_app),
-                        label: const Text('فتح واجهة قراءة البصمة'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.turquoise,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-                        ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const FingerprintScreen()),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FingerprintScreen()),
+                    );
+                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -381,13 +286,13 @@ class DesktopHomeContent extends StatelessWidget {
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
-                  onPressed: () => onNavigate(4),
+                  onPressed: () => onNavigate(3),
                 ),
                 const SizedBox(width: 8),
                 IconButton.outlined(
                   icon: const Icon(Icons.settings_outlined, color: AppColors.primaryBlue),
                   tooltip: 'إعدادات الحضور والانصراف',
-                  onPressed: () => onNavigate(9),
+                  onPressed: () => onNavigate(7),
                 ),
               ],
             ),
@@ -422,7 +327,7 @@ class DesktopHomeContent extends StatelessWidget {
                     TextButton.icon(
                       icon: const Icon(Icons.arrow_forward),
                       label: const Text('عرض جميع السجلات'),
-                      onPressed: () => onNavigate(4),
+                      onPressed: () => onNavigate(3),
                     ),
                   ],
                 ),

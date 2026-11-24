@@ -339,7 +339,37 @@ class HiveHelper {
     return 1;
   }
 
-  Future<int> deleteStudent(int id) async {
+  Future<int> deleteStudent(int id, {Student? student}) async {
+    Map<String, dynamic>? studentMap;
+    for (final key in _studentsBox.keys.toList()) {
+      final raw = _studentsBox.get(key);
+      if (raw != null &&
+          (raw['id']?.toString() == id.toString() ||
+              key.toString() == id.toString())) {
+        studentMap = Map<String, dynamic>.from(raw);
+        studentMap['id'] = id;
+        break;
+      }
+    }
+    studentMap ??= student?.toMap();
+    studentMap?['id'] = id;
+
+    final universityId =
+        studentMap?['university_id']?.toString() ??
+        studentMap?['student_number']?.toString();
+    for (final key in _attendanceBox.keys.toList()) {
+      final raw = _attendanceBox.get(key);
+      if (raw == null) continue;
+      final matchesId = raw['student_id']?.toString() == id.toString();
+      final matchesUniversityId =
+          universityId != null &&
+          (raw['university_id']?.toString() == universityId ||
+              raw['student_number']?.toString() == universityId);
+      if (matchesId || matchesUniversityId) {
+        await _attendanceBox.delete(key);
+      }
+    }
+
     await _studentsBox.delete(id);
     await _studentsBox.delete(id.toString());
     for (var key in _studentsBox.keys.toList()) {
@@ -348,13 +378,35 @@ class HiveHelper {
         await _studentsBox.delete(key);
       }
     }
+
+    for (final key in _fingerprintsBox.keys.toList()) {
+      final raw = _fingerprintsBox.get(key);
+      if (raw != null &&
+          (raw['student_id']?.toString() == id.toString() ||
+              (universityId != null &&
+                  raw['university_id']?.toString() == universityId))) {
+        await _fingerprintsBox.delete(key);
+      }
+    }
+    for (final key in _verificationLogsBox.keys.toList()) {
+      final raw = _verificationLogsBox.get(key);
+      if (raw != null &&
+          (raw['student_id']?.toString() == id.toString() ||
+              (universityId != null &&
+                  raw['university_id']?.toString() == universityId))) {
+        await _verificationLogsBox.delete(key);
+      }
+    }
+
+    final deletePayload = studentMap ?? <String, dynamic>{};
+    deletePayload['id'] = id;
     await _queueSyncItem(
       operation: 'DELETE',
       tableName: 'students',
       recordId: id.toString(),
-      payload: {'id': id},
+      payload: deletePayload,
     );
-    return 1;
+    return studentMap == null ? 0 : 1;
   }
 
   Future<bool> linkBarcodeToStudent(int studentId, String newBarcode) async {
@@ -542,10 +594,13 @@ class HiveHelper {
     }
   }
 
-  Future<int> deleteMultipleStudents(List<int> ids) async {
+  Future<int> deleteMultipleStudents(
+    List<int> ids, {
+    Map<int, Student>? studentsById,
+  }) async {
     int count = 0;
     for (final id in ids) {
-      count += await deleteStudent(id);
+      count += await deleteStudent(id, student: studentsById?[id]);
     }
     return count;
   }

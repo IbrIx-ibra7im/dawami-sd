@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../data/local/database_helper.dart';
@@ -86,6 +88,29 @@ class AppRepository extends ChangeNotifier {
   int get fingerprintAttendanceCount => _todayAttendance.where((a) => a.method == 'fingerprint').length;
   int get qrAttendanceCount => _todayAttendance.where((a) => a.method == 'qr').length;
   int get manualAttendanceCount => _todayAttendance.where((a) => a.method == 'manual').length;
+
+  Future<Set<String>> _pendingStudentDeletions() async {
+    final pending = <String>{};
+    if (!_hive.isInitialized) return pending;
+    for (final item in await _hive.getSyncQueueItems()) {
+      if (item.tableName != 'students' ||
+          item.operation.toUpperCase() != 'DELETE' ||
+          item.status == 'تمت') {
+        continue;
+      }
+      final payload = jsonDecode(item.payload);
+      if (payload is Map) {
+        final universityId =
+            payload['university_id'] ??
+            payload['student_number'] ??
+            payload['record_key'];
+        if (universityId != null && universityId.toString().isNotEmpty) {
+          pending.add(universityId.toString());
+        }
+      }
+    }
+    return pending;
+  }
 
   AppRepository() {
     loadInitialData();
@@ -226,12 +251,15 @@ class AppRepository extends ChangeNotifier {
           status: status,
         );
         if (remoteStudents.isNotEmpty || query != null || collegeId != null) {
-          _students = remoteStudents;
+          final pendingDeletes = await _pendingStudentDeletions();
+          _students = remoteStudents
+              .where((student) => !pendingDeletes.contains(student.universityId))
+              .toList();
           _isPrimaryConnected = true;
           loadedFromPrimary = true;
           // Mirror/Backup into local Hive storage
           if (_hive.isInitialized) {
-            await _hive.batchInsertOrUpdateStudents(remoteStudents);
+            await _hive.batchInsertOrUpdateStudents(_students);
           }
         }
       } catch (e) {
@@ -283,12 +311,15 @@ class AppRepository extends ChangeNotifier {
           method: method,
         );
         if (remoteRecords.isNotEmpty) {
-          _todayAttendance = remoteRecords;
+          final pendingDeletes = await _pendingStudentDeletions();
+          _todayAttendance = remoteRecords
+              .where((record) => !pendingDeletes.contains(record.universityId))
+              .toList();
           _isPrimaryConnected = true;
           loadedFromPrimary = true;
           // Mirror/Backup into local Hive storage
           if (_hive.isInitialized) {
-            await _hive.saveAttendanceRecords(remoteRecords);
+            await _hive.saveAttendanceRecords(_todayAttendance);
           }
         }
       } catch (e) {
@@ -645,11 +676,21 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> updateStudent(Student student) async {
+    Student? previousStudent;
+    for (final existing in _students) {
+      if (existing.id == student.id) {
+        previousStudent = existing;
+        break;
+      }
+    }
+
     // 1. Update in Backup Database (Hive)
     await _hive.updateStudent(student);
     try {
       await _db.updateStudent(student);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) print('Local SQLite updateStudent notice: $e');
+    }
 
     // 2. Update in Primary Database (Supabase)
     if (_supabase.isConfigured && _supabase.client != null) {
@@ -663,50 +704,144 @@ class AppRepository extends ChangeNotifier {
         if (kDebugMode) print('Direct primary DB updateStudent notice (backed up in Hive): $e');
       }
     }
-    await refreshStudents();
+    final existingIndex = _students.indexWhere(
+      (existing) =>
+          existing.id == student.id ||
+          existing.universityId == previousStudent?.universityId,
+    );
+    if (existingIndex == -1) {
+      _students.add(student);
+    } else {
+      _students[existingIndex] = student;
+    }
+    notifyListeners();
   }
 
   Future<void> deleteStudent(int studentId) async {
     Student? targetStudent;
     try {
       targetStudent = await _hive.getStudentById(studentId);
-    } catch (_) {}
+    } catch (e) {
+      if (kDebugMode) print('Could not load student before deletion: $e');
+    }
+    if (targetStudent == null) {
+      for (final student in _students) {
+        if (student.id == studentId) {
+          targetStudent = student;
+          break;
+        }
+      }
+    }
 
     // 1. Delete from Backup Database (Hive)
-    await _hive.deleteStudent(studentId);
+    await _hive.deleteStudent(studentId, student: targetStudent);
     try {
-      await _db.deleteStudent(studentId);
-    } catch (_) {}
+      await _db.deleteStudent(studentId, student: targetStudent);
+    } catch (e) {
+      if (kDebugMode) print('Local SQLite deleteStudent notice: $e');
+    }
 
     // 2. Delete from Primary Database (Supabase)
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.deleteStudent(studentId, targetStudent?.universityId);
-        _isPrimaryConnected = true;
+        final deleted = await _supabase.deleteStudent(
+          studentId,
+          targetStudent?.universityId,
+        );
+        if (deleted) {
+          _isPrimaryConnected = true;
+        } else if (kDebugMode) {
+          print('Remote student delete deferred to the sync queue');
+        }
       } catch (e) {
         if (kDebugMode) print('Direct primary DB deleteStudent notice: $e');
       }
     }
+    _students.removeWhere((student) => student.id == studentId);
+    _todayAttendance.removeWhere(
+      (record) =>
+          record.studentId == studentId ||
+          (targetStudent != null &&
+              record.universityId == targetStudent.universityId),
+    );
+    _fingerprints.removeWhere((fingerprint) => fingerprint.studentId == studentId);
+    _biometricLogs.removeWhere(
+      (log) =>
+          log.studentId == studentId ||
+          (targetStudent != null &&
+              log.universityId == targetStudent.universityId),
+    );
     await refreshStudents();
+    notifyListeners();
   }
 
   Future<void> deleteMultipleStudents(List<int> studentIds) async {
+    final idsToDelete = studentIds.toSet().toList();
+    final studentsById = <int, Student>{};
+    for (final id in idsToDelete) {
+      try {
+        final student = await _hive.getStudentById(id);
+        if (student != null) studentsById[id] = student;
+      } catch (e) {
+        if (kDebugMode) print('Could not load student $id before deletion: $e');
+      }
+      if (!studentsById.containsKey(id)) {
+        for (final student in _students) {
+          if (student.id == id) {
+            studentsById[id] = student;
+            break;
+          }
+        }
+      }
+    }
+
     // 1. Delete from Backup Database (Hive)
-    await _hive.deleteMultipleStudents(studentIds);
-    try {
-      await _db.deleteMultipleStudents(studentIds);
-    } catch (_) {}
+    await _hive.deleteMultipleStudents(
+      idsToDelete,
+      studentsById: studentsById,
+    );
+    for (final id in idsToDelete) {
+      try {
+        await _db.deleteStudent(id, student: studentsById[id]);
+      } catch (e) {
+        if (kDebugMode) print('Local SQLite deleteStudent notice for $id: $e');
+      }
+    }
 
     // 2. Delete from Primary Database (Supabase)
     if (_supabase.isConfigured && _supabase.client != null) {
       try {
-        await _supabase.deleteMultipleStudents(studentIds);
-        _isPrimaryConnected = true;
+        final deleted = await _supabase.deleteMultipleStudents(
+          studentsById.values.map((student) => student.universityId).toList(),
+        );
+        if (deleted) {
+          _isPrimaryConnected = true;
+        } else if (kDebugMode) {
+          print('Remote bulk student delete deferred to the sync queue');
+        }
       } catch (e) {
         if (kDebugMode) print('Direct primary DB deleteMultipleStudents notice: $e');
       }
     }
+    final deletedUniversityIds = studentsById.values
+        .map((student) => student.universityId)
+        .toSet();
+    _students.removeWhere((student) => idsToDelete.contains(student.id));
+    _todayAttendance.removeWhere(
+      (record) =>
+          idsToDelete.contains(record.studentId) ||
+          deletedUniversityIds.contains(record.universityId),
+    );
+    _fingerprints.removeWhere(
+      (fingerprint) => idsToDelete.contains(fingerprint.studentId),
+    );
+    _biometricLogs.removeWhere(
+      (log) =>
+          idsToDelete.contains(log.studentId) ||
+          deletedUniversityIds.contains(log.universityId),
+    );
     await refreshStudents();
+    notifyListeners();
   }
 
   Future<void> deleteAttendanceRecord(String id) async {
