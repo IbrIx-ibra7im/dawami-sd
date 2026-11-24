@@ -27,7 +27,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(20, 20);
   Win32Window::Size size(1360, 850);
-  if (!window.Create(L"دوامي - نظام ذكي لإدارة الحضور والإنصراف للطلاب والموظفين والشركات والمؤسسات والمستشفيات", origin, size)) {
+  if (!window.Create(L"دوامي - نظام إدارة حضور وغياب الطلاب الذكي", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
