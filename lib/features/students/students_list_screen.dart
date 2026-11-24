@@ -467,6 +467,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   const DataColumn(label: Text('الكلية', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الهاتف', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الحالة', style: TextStyle(fontWeight: FontWeight.bold))),
+                  const DataColumn(label: Text('حالة البصمة', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('بطاقة QR', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الإجراءات والعمليات', style: TextStyle(fontWeight: FontWeight.bold))),
                 ],
@@ -508,6 +509,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                       DataCell(Text(s.collegeName ?? '-')),
                       DataCell(Text(s.phone)),
                       DataCell(StatusBadge.fromStatus(s.status)),
+                      DataCell(StatusBadge.fromFingerprintStatus(s.hasFingerprint)),
                       DataCell(IconButton(
                         icon: const Icon(Icons.qr_code, color: AppColors.primaryBlue),
                         tooltip: 'عرض بطاقة الطالب',
@@ -684,7 +686,14 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   ],
                 ),
               ),
-              StatusBadge.fromStatus(student.status),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  StatusBadge.fromStatus(student.status),
+                  const SizedBox(height: 4),
+                  StatusBadge.fromFingerprintStatus(student.hasFingerprint),
+                ],
+              ),
             ],
           ),
 

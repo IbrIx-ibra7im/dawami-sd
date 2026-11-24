@@ -70,6 +70,24 @@ class StatusBadge extends StatelessWidget {
     }
   }
 
+  factory StatusBadge.fromFingerprintStatus(bool hasFingerprint) {
+    if (hasFingerprint) {
+      return const StatusBadge(
+        label: 'مسجلة',
+        backgroundColor: Color(0x2210B981),
+        textColor: Color(0xFF059669),
+        icon: Icons.fingerprint_rounded,
+      );
+    } else {
+      return const StatusBadge(
+        label: 'غير مسجلة',
+        backgroundColor: Color(0x22F59E0B),
+        textColor: Color(0xFFD97706),
+        icon: Icons.fingerprint_rounded,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
