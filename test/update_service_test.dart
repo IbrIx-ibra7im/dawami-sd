@@ -65,6 +65,34 @@ void main() {
       expect(release.apkSizeFormatted, isNotEmpty);
     });
 
+    test('Parses GitHub Release JSON with APK and Windows EXE assets', () {
+      final json = {
+        'tag_name': 'v1.1.0',
+        'name': 'Dawami Release 1.1.0',
+        'body': 'Features:\n- Added Windows Installer',
+        'html_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.1.0',
+        'assets': [
+          {
+            'name': 'app-release.apk',
+            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/app-release.apk',
+            'size': 88000000,
+          },
+          {
+            'name': 'Dawami_Setup_v1.1.0.exe',
+            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/Dawami_Setup_v1.1.0.exe',
+            'size': 9700000,
+          }
+        ],
+      };
+
+      final release = AppReleaseInfo.fromJson(json);
+      expect(release.cleanVersion, '1.1.0');
+      expect(release.hasDirectApk, isTrue);
+      expect(release.hasDirectExe, isTrue);
+      expect(release.exeFileName, 'Dawami_Setup_v1.1.0.exe');
+      expect(release.downloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.1.0');
+    });
+
     test('Parses GitHub Release JSON without APK asset fallback', () {
       final json = {
         'tag_name': 'v1.0.0',

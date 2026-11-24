@@ -223,25 +223,98 @@ class UpdateDialog extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (releaseInfo.hasApk)
+                  // Assets Available Badges
+                  if (releaseInfo.hasExe || releaseInfo.hasApk)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Row(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
                         children: [
-                          const Icon(Icons.android_rounded, size: 16, color: AppColors.success),
-                          const SizedBox(width: 6),
-                          Text(
-                            'يتوفر ملف APK للتثبيت المباشر من GitHub Releases.',
-                            style: TextStyle(fontSize: 11, color: Colors.green.shade700),
-                          ),
+                          if (releaseInfo.hasExe)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryBlue.withAlpha(20),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primaryBlue.withAlpha(80)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.desktop_windows_rounded, size: 15, color: AppColors.primaryBlue),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'مثبت ويندوز (.exe): ${releaseInfo.exeSizeFormatted.isNotEmpty ? releaseInfo.exeSizeFormatted : "متوفر"}',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          if (releaseInfo.hasApk)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: AppColors.success.withAlpha(20),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.success.withAlpha(80)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.android_rounded, size: 15, color: AppColors.success),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    'تطبيق أندرويد (.apk): ${releaseInfo.apkSizeFormatted.isNotEmpty ? releaseInfo.apkSizeFormatted : "متوفر"}',
+                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
+
+                  const SizedBox(height: 10),
+
+                  // Download Link Card
+                  InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      UpdateService.instance.openUpdateUrl(releaseInfo.htmlUrl);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.surfaceDark : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.link_rounded, size: 16, color: AppColors.primaryBlue),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              releaseInfo.htmlUrl,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.primaryBlue,
+                                decoration: TextDecoration.underline,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.open_in_new_rounded, size: 14, color: AppColors.primaryBlue),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
 
             // 4. Action Buttons
             Padding(
@@ -253,34 +326,22 @@ class UpdateDialog extends StatelessWidget {
                     child: const Text('لاحقاً', style: TextStyle(color: Colors.grey)),
                   ),
                   const Spacer(),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                    label: const Text('صفحة الإصدار'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryBlue,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    onPressed: () {
-                      UpdateService.instance.openUpdateUrl(releaseInfo.htmlUrl);
-                    },
-                  ),
-                  const SizedBox(width: 10),
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.download_rounded, size: 18),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
                     label: const Text(
-                      'تحديث الآن',
+                      'الانتقال إلى موقع التحميل',
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryBlue,
                       foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 2,
                     ),
                     onPressed: () async {
                       Navigator.of(context).pop();
-                      await UpdateService.instance.openUpdateUrl(releaseInfo.downloadUrl);
+                      await UpdateService.instance.openUpdateUrl(releaseInfo.htmlUrl);
                     },
                   ),
                 ],
