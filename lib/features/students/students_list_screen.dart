@@ -11,6 +11,8 @@ import 'add_edit_student_dialog.dart';
 import 'student_card_dialog.dart';
 import 'import_students_dialog.dart';
 import '../fingerprint/fingerprint_enrollment_dialog.dart';
+import '../face_attendance/widgets/student_face_enrollment_dialog.dart';
+import '../dashboard/widgets/photo_verification_dialog.dart';
 
 class StudentsListScreen extends StatefulWidget {
   const StudentsListScreen({super.key});
@@ -467,6 +469,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   const DataColumn(label: Text('الكلية', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الهاتف', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الحالة', style: TextStyle(fontWeight: FontWeight.bold))),
+                  const DataColumn(label: Text('نوع الحضور', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('حالة البصمة', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('بطاقة QR', style: TextStyle(fontWeight: FontWeight.bold))),
                   const DataColumn(label: Text('الإجراءات والعمليات', style: TextStyle(fontWeight: FontWeight.bold))),
@@ -504,11 +507,71 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                         ),
                       ),
                       DataCell(Text('${index + 1}')),
-                      DataCell(Text(s.fullName, style: const TextStyle(fontWeight: FontWeight.w600))),
+                      DataCell(Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              final photo = (s.photoUrl != null && s.photoUrl!.isNotEmpty)
+                                  ? s.photoUrl!
+                                  : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(s.fullName)}&background=0D8ABC&color=fff&size=256';
+
+                              PhotoVerificationDialog.show(
+                                context,
+                                photoUrl: photo,
+                                studentName: s.fullName,
+                                universityId: s.universityId,
+                                collegeName: s.collegeName,
+                                departmentName: s.departmentName,
+                                attendanceMethod: s.attendanceMethodDisplay,
+                                actionType: s.status,
+                                livenessScore: 0.98,
+                                isEnrolledFace: s.faceRegistered,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Tooltip(
+                              message: 'انقر لتكبير وفحص صحة وحيوية الصورة',
+                              child: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    backgroundColor: AppColors.primaryBlue.withAlpha(25),
+                                    backgroundImage: NetworkImage(
+                                      (s.photoUrl != null && s.photoUrl!.isNotEmpty)
+                                          ? s.photoUrl!
+                                          : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(s.fullName)}&background=0D8ABC&color=fff&size=256',
+                                    ),
+                                  ),
+                                  if (s.faceRegistered)
+                                    const Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Icon(Icons.verified, size: 10, color: AppColors.success),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(s.fullName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ],
+                      )),
                       DataCell(Text(s.universityId)),
                       DataCell(Text(s.collegeName ?? '-')),
                       DataCell(Text(s.phone)),
                       DataCell(StatusBadge.fromStatus(s.status)),
+                      DataCell(Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withAlpha(20),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          s.attendanceMethodDisplay,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
+                        ),
+                      )),
                       DataCell(StatusBadge.fromFingerprintStatus(s.hasFingerprint)),
                       DataCell(IconButton(
                         icon: const Icon(Icons.qr_code, color: AppColors.primaryBlue),
@@ -528,7 +591,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                             message: 'تعديل بيانات الطالب',
                             child: ElevatedButton.icon(
                               icon: const Icon(Icons.edit_rounded, size: 14),
-                              label: const Text('تعديل البيانات', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              label: const Text('تعديل', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryBlue,
                                 foregroundColor: Colors.white,
@@ -545,11 +608,28 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          // 2. زر البصمة (Fingerprint Enrollment Button)
+                          // 2. زر الحذف (Delete Button)
+                          Tooltip(
+                            message: 'حذف الطالب نهائياً',
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.delete_outline_rounded, size: 14),
+                              label: const Text('حذف', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.danger,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                elevation: 0,
+                              ),
+                              onPressed: () => _confirmDeleteStudent(context, s, repo),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // 3. زر البصمة (Fingerprint Enrollment Button)
                           OutlinedButton.icon(
                             icon: Icon(Icons.fingerprint_rounded, size: 14, color: s.hasFingerprint ? AppColors.turquoise : Colors.grey),
                             label: Text(
-                              s.hasFingerprint ? 'مسجلة' : 'تسجيل بصمة',
+                              s.hasFingerprint ? 'مسجلة' : 'بصمة إصبع',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -572,23 +652,36 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                             },
                           ),
                           const SizedBox(width: 6),
-                          // 3. زر الحذف (Delete Button)
-                          ElevatedButton.icon(
-                            icon: const Icon(Icons.delete_outline_rounded, size: 14),
-                            label: const Text('حذف', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.danger,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              elevation: 0,
+                          // 4. زر بصمة الوجه (Face Profile Enrollment Button)
+                          OutlinedButton.icon(
+                            icon: Icon(Icons.camera_front_rounded, size: 14, color: s.faceRegistered ? Colors.teal : Colors.grey),
+                            label: Text(
+                              s.faceRegistered ? 'وجه مسجل' : 'بصمة وجه',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: s.faceRegistered ? Colors.teal : Colors.grey.shade700,
+                              ),
                             ),
-                            onPressed: () => _confirmDeleteStudent(context, s, repo),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                              side: BorderSide(color: s.faceRegistered ? Colors.teal.withAlpha(80) : Colors.grey.withAlpha(50)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => StudentFaceEnrollmentDialog(
+                                  student: s,
+                                  isReEnrollment: s.faceRegistered,
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(width: 6),
-                          // 4. زر البطاقة (Student Card Dialog)
+                          // 5. زر البطاقة (Student Card Dialog)
                           IconButton(
-                            icon: const Icon(Icons.badge_rounded, color: Colors.teal),
+                            icon: const Icon(Icons.badge_rounded, color: Colors.blueGrey),
                             tooltip: 'عرض وطباعة بطاقة الطالب',
                             onPressed: () {
                               showDialog(
@@ -611,7 +704,6 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
   }
 
   Widget _buildStudentTile(BuildContext context, Student student, AppRepository repo, bool isDark) {
-    final firstLetter = student.fullName.isNotEmpty ? student.fullName[0] : 'ط';
     final isSelected = student.id != null && _selectedStudentIds.contains(student.id);
 
     return Container(
@@ -654,15 +746,46 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                   });
                 },
               ),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.primaryBlue.withAlpha(25),
-                child: Text(
-                  firstLetter,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: AppColors.primaryBlue,
+              InkWell(
+                onTap: () {
+                  final photo = (student.photoUrl != null && student.photoUrl!.isNotEmpty)
+                      ? student.photoUrl!
+                      : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(student.fullName)}&background=0D8ABC&color=fff&size=256';
+
+                  PhotoVerificationDialog.show(
+                    context,
+                    photoUrl: photo,
+                    studentName: student.fullName,
+                    universityId: student.universityId,
+                    collegeName: student.collegeName,
+                    departmentName: student.departmentName,
+                    attendanceMethod: student.attendanceMethodDisplay,
+                    actionType: student.status,
+                    livenessScore: 0.98,
+                    isEnrolledFace: student.faceRegistered,
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: Tooltip(
+                  message: 'انقر لتكبير وفحص صحة وحيوية الصورة',
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.primaryBlue.withAlpha(25),
+                        backgroundImage: NetworkImage(
+                          (student.photoUrl != null && student.photoUrl!.isNotEmpty)
+                              ? student.photoUrl!
+                              : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(student.fullName)}&background=0D8ABC&color=fff&size=256',
+                        ),
+                      ),
+                      if (student.faceRegistered)
+                        const Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Icon(Icons.verified, size: 12, color: AppColors.success),
+                        ),
+                    ],
                   ),
                 ),
               ),
@@ -677,7 +800,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'الرقم: ${student.universityId} • ${student.collegeName ?? 'كلية'}',
+                      'الرقم: ${student.universityId} • ${student.collegeName ?? 'كلية'} • ${student.attendanceMethodDisplay}',
                       style: TextStyle(
                         fontSize: 12,
                         color: isDark ? Colors.white70 : Colors.grey.shade700,
@@ -706,6 +829,7 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
             children: [
               // 1. زر التعديل (Edit Button)
               Expanded(
+                flex: 3,
                 child: Tooltip(
                   message: 'تعديل بيانات الطالب',
                   child: ElevatedButton.icon(
@@ -732,20 +856,36 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
               ),
               const SizedBox(width: 6),
 
-              // 2. زر البصمة (Fingerprint Enrollment Button)
+              // 2. زر الحذف (Delete Button with Alert)
               Expanded(
-                child: OutlinedButton.icon(
-                  icon: Icon(Icons.fingerprint_rounded, size: 16, color: student.hasFingerprint ? AppColors.turquoise : Colors.grey),
-                  label: Text(
-                    student.hasFingerprint ? 'بصمة مسجلة' : 'تسجيل بصمة',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: student.hasFingerprint ? AppColors.turquoise : Colors.grey.shade700,
+                flex: 3,
+                child: Tooltip(
+                  message: 'حذف الطالب نهائياً',
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 15),
+                    label: const Text(
+                      'حذف',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                     ),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    onPressed: () => _confirmDeleteStudent(context, student, repo),
                   ),
+                ),
+              ),
+              const SizedBox(width: 6),
+
+              // 3. زر البصمة (Fingerprint Enrollment Button)
+              Tooltip(
+                message: student.hasFingerprint ? 'بصمة الإصبع مسجلة' : 'تسجيل بصمة الإصبع',
+                child: OutlinedButton(
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
                     side: BorderSide(color: student.hasFingerprint ? AppColors.turquoise.withAlpha(80) : Colors.grey.withAlpha(60)),
                     backgroundColor: student.hasFingerprint ? AppColors.turquoise.withAlpha(12) : null,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -759,39 +899,53 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                       ),
                     );
                   },
+                  child: Icon(Icons.fingerprint_rounded, size: 18, color: student.hasFingerprint ? AppColors.turquoise : Colors.grey),
                 ),
               ),
               const SizedBox(width: 6),
 
-              // 3. زر الحذف (Delete Button with Alert)
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
-                  backgroundColor: AppColors.danger,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 0,
+              // 4. زر بصمة الوجه (Face Profile Enrollment Button)
+              Tooltip(
+                message: student.faceRegistered ? 'بصمة الوجه مسجلة' : 'تسجيل بصمة الوجه بالكاميرا',
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+                    side: BorderSide(color: student.faceRegistered ? Colors.teal.withAlpha(80) : Colors.grey.withAlpha(60)),
+                    backgroundColor: student.faceRegistered ? Colors.teal.withAlpha(12) : null,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => StudentFaceEnrollmentDialog(
+                        student: student,
+                        isReEnrollment: student.faceRegistered,
+                      ),
+                    );
+                  },
+                  child: Icon(Icons.camera_front_rounded, size: 18, color: student.faceRegistered ? Colors.teal : Colors.grey),
                 ),
-                onPressed: () => _confirmDeleteStudent(context, student, repo),
-                child: const Icon(Icons.delete_outline_rounded, size: 18),
               ),
               const SizedBox(width: 6),
 
-              // 4. Student Card Button
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
-                  side: BorderSide(color: Colors.teal.withAlpha(80)),
-                  backgroundColor: Colors.teal.withAlpha(15),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              // 5. زر البطاقة (Student Card Button)
+              Tooltip(
+                message: 'عرض بطاقة الطالب',
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+                    side: BorderSide(color: Colors.blueGrey.withAlpha(80)),
+                    backgroundColor: Colors.blueGrey.withAlpha(15),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => StudentCardDialog(student: student),
+                    );
+                  },
+                  child: const Icon(Icons.badge_rounded, size: 18, color: Colors.blueGrey),
                 ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => StudentCardDialog(student: student),
-                  );
-                },
-                child: const Icon(Icons.badge_rounded, size: 18, color: Colors.teal),
               ),
             ],
           ),

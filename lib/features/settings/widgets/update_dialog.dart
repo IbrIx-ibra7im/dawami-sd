@@ -39,7 +39,7 @@ class UpdateDialog extends StatelessWidget {
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Container(
         width: 520,
-        constraints: const BoxConstraints(maxHeight: 650),
+        constraints: const BoxConstraints(maxHeight: 680),
         decoration: BoxDecoration(
           color: isDark ? AppColors.surfaceDark : Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -62,7 +62,7 @@ class UpdateDialog extends StatelessWidget {
                 gradient: LinearGradient(
                   colors: [
                     AppColors.primaryBlue,
-                    AppColors.turquoise.withAlpha(220),
+                    AppColors.turquoise.withAlpha(230),
                   ],
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
@@ -80,10 +80,9 @@ class UpdateDialog extends StatelessWidget {
                       color: Colors.white.withAlpha(40),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.system_update_rounded,
-                      color: Colors.white,
-                      size: 28,
+                    child: const Text(
+                      '🚀',
+                      style: TextStyle(fontSize: 26),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -92,7 +91,7 @@ class UpdateDialog extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          '🚀 إصدار جديد متوفر!',
+                          'إصدار جديد متوفر!',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -101,9 +100,9 @@ class UpdateDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          releaseInfo.name.isNotEmpty ? releaseInfo.name : 'تحديث جديد لتطبيق دوامي',
+                          '${releaseInfo.name} • الإصدار ${releaseInfo.cleanVersion}',
                           style: TextStyle(
-                            color: Colors.white.withAlpha(220),
+                            color: Colors.white.withAlpha(230),
                             fontSize: 13,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -120,81 +119,102 @@ class UpdateDialog extends StatelessWidget {
               ),
             ),
 
-            // 2. Version Comparison Badge
+            // 2. Version Comparison Bar (بطاقتان متجاورتان وسهم اتجاه)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.darkBg : AppColors.lightBg,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      children: [
-                        const Text(
-                          'الإصدار الحالي',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              child: Row(
+                children: [
+                  // بطاقة رمادية: الإصدار الحالي
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
                         ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.withAlpha(30),
-                            borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            'الإصدار الحالي',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                            ),
                           ),
-                          child: Text(
+                          const SizedBox(height: 4),
+                          Text(
                             currentVersion,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const Icon(Icons.arrow_forward_rounded, color: AppColors.primaryBlue),
-                    Column(
-                      children: [
-                        const Text(
-                          'الإصدار الجديد',
-                          style: TextStyle(fontSize: 11, color: AppColors.success),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    child: Icon(
+                      Icons.arrow_forward_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 26,
+                    ),
+                  ),
+                  // بطاقة خضراء تبرز الإصدار الجديد
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withAlpha(isDark ? 30 : 20),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.success.withAlpha(100),
+                          width: 1.5,
                         ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withAlpha(25),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.success.withAlpha(80)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'الإصدار الجديد',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          child: Text(
+                          const SizedBox(height: 4),
+                          Text(
                             releaseInfo.cleanVersion,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                              fontSize: 15,
                               color: AppColors.success,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
-            // 3. Release Notes / Changelog
+            // 3. What's New Container (ملاحظات الإصدار)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.notes_rounded, size: 16, color: AppColors.primaryBlue),
+                      Icon(Icons.notes_rounded, size: 18, color: AppColors.primaryBlue),
                       SizedBox(width: 6),
                       Text(
                         'ما الجديد في هذا الإصدار:',
@@ -206,7 +226,7 @@ class UpdateDialog extends StatelessWidget {
                   Container(
                     width: double.infinity,
                     constraints: const BoxConstraints(maxHeight: 180),
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: isDark ? AppColors.darkBg : AppColors.lightBg,
                       borderRadius: BorderRadius.circular(12),
@@ -218,22 +238,22 @@ class UpdateDialog extends StatelessWidget {
                       child: SelectableText(
                         releaseInfo.body.isNotEmpty
                             ? releaseInfo.body
-                            : 'يتضمن هذا الإصدار تحسينات برمجية وإصلاحات لزيادة سرعة وكفاءة تسجيل الحضور بالبصمة والباركود.',
-                        style: const TextStyle(fontSize: 12, height: 1.5),
+                            : 'يتضمن هذا الإصدار تحسينات وإصلاحات جديدة لزيادة سرعة وكفاءة تسجيل الحضور بالبصمة والباركود ومزامنة البيانات.',
+                        style: const TextStyle(fontSize: 13, height: 1.6),
                       ),
                     ),
                   ),
-                  // Assets Available Badges
+                  // إشارات الحزم التنفيذية المتوفرة
                   if (releaseInfo.hasExe || releaseInfo.hasApk)
                     Padding(
-                      padding: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.only(top: 8),
                       child: Wrap(
                         spacing: 8,
                         runSpacing: 6,
                         children: [
                           if (releaseInfo.hasExe)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.primaryBlue.withAlpha(20),
                                 borderRadius: BorderRadius.circular(8),
@@ -242,7 +262,7 @@ class UpdateDialog extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.desktop_windows_rounded, size: 15, color: AppColors.primaryBlue),
+                                  const Icon(Icons.desktop_windows_rounded, size: 14, color: AppColors.primaryBlue),
                                   const SizedBox(width: 5),
                                   Text(
                                     'مثبت ويندوز (.exe): ${releaseInfo.exeSizeFormatted.isNotEmpty ? releaseInfo.exeSizeFormatted : "متوفر"}',
@@ -253,7 +273,7 @@ class UpdateDialog extends StatelessWidget {
                             ),
                           if (releaseInfo.hasApk)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.success.withAlpha(20),
                                 borderRadius: BorderRadius.circular(8),
@@ -262,7 +282,7 @@ class UpdateDialog extends StatelessWidget {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.android_rounded, size: 15, color: AppColors.success),
+                                  const Icon(Icons.android_rounded, size: 14, color: AppColors.success),
                                   const SizedBox(width: 5),
                                   Text(
                                     'تطبيق أندرويد (.apk): ${releaseInfo.apkSizeFormatted.isNotEmpty ? releaseInfo.apkSizeFormatted : "متوفر"}',
@@ -274,39 +294,55 @@ class UpdateDialog extends StatelessWidget {
                         ],
                       ),
                     ),
-
                 ],
               ),
             ),
 
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
 
-            // 4. Action Buttons
+            // 4. Action Buttons (تحديث الآن، صفحة الإصدار، لاحقاً)
             Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: Row(
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('لاحقاً', style: TextStyle(color: Colors.grey)),
+                    child: const Text('لاحقاً', style: TextStyle(color: Colors.grey, fontSize: 13)),
                   ),
                   const Spacer(),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                    label: const Text(
-                      'الانتقال إلى موقع التحميل',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryBlue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 2,
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                    label: const Text('صفحة الإصدار', style: TextStyle(fontSize: 12)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: isDark ? Colors.white70 : AppColors.darkBlue,
+                      side: BorderSide(
+                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                     onPressed: () async {
                       Navigator.of(context).pop();
                       await UpdateService.instance.openUpdateUrl(releaseInfo.htmlUrl);
+                    },
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: const Text(
+                      'تحديث الآن',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      elevation: 2,
+                    ),
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await UpdateService.instance.openUpdateUrl(releaseInfo.downloadUrl);
                     },
                   ),
                 ],

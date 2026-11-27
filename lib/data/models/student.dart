@@ -16,6 +16,10 @@ class Student {
   final int? fingerprintQuality; // 0 - 100%
   final String? fingerprintEnrolledAt;
   final String? photoUrl;
+  final bool faceRegistered;
+  final String? faceEnrolledAt;
+  final String? faceEmbedding;
+  final String attendanceMethod; // 'all', 'fingerprint', 'barcode', 'face'
   final String? collegeName;
   final String? departmentName;
   final String? levelName;
@@ -27,6 +31,35 @@ class Student {
   String get college => collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية';
   String get department => departmentName ?? 'علوم الحاسوب';
   String get academicLevel => levelName ?? 'المستوى الأول';
+
+  String get attendanceMethodDisplay {
+    switch (attendanceMethod) {
+      case 'fingerprint':
+        return 'بصمة إصبع';
+      case 'barcode':
+        return 'باركود / QR';
+      case 'face':
+        return 'بصمة وجه';
+      case 'all':
+      default:
+        return 'كافة الوسائل';
+    }
+  }
+
+  bool allowsAttendanceMethod(String method) {
+    if (attendanceMethod == 'all' || attendanceMethod.isEmpty) return true;
+    final clean = method.trim().toLowerCase();
+    if (attendanceMethod == 'fingerprint') {
+      return clean.contains('fingerprint') || clean == 'manual';
+    }
+    if (attendanceMethod == 'barcode') {
+      return clean.contains('barcode') || clean.contains('qr') || clean == 'manual';
+    }
+    if (attendanceMethod == 'face') {
+      return clean.contains('face') || clean == 'manual';
+    }
+    return true;
+  }
 
   bool get hasFingerprint =>
       fingerprintId != null &&
@@ -51,6 +84,10 @@ class Student {
     this.fingerprintQuality,
     this.fingerprintEnrolledAt,
     this.photoUrl,
+    this.faceRegistered = false,
+    this.faceEnrolledAt,
+    this.faceEmbedding,
+    this.attendanceMethod = 'all',
     this.collegeName,
     this.departmentName,
     this.levelName,
@@ -79,6 +116,10 @@ class Student {
       if (fingerprintQuality != null) 'fingerprint_quality': fingerprintQuality,
       if (fingerprintEnrolledAt != null) 'fingerprint_enrolled_at': fingerprintEnrolledAt,
       'photo_url': photoUrl,
+      'face_registered': faceRegistered ? 1 : 0,
+      if (faceEnrolledAt != null) 'face_enrolled_at': faceEnrolledAt,
+      if (faceEmbedding != null) 'face_embedding': faceEmbedding,
+      'attendance_method': attendanceMethod,
       'college': collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية',
       'department': departmentName ?? 'علوم الحاسوب',
       'academic_level': levelName ?? 'المستوى الأول',
@@ -144,6 +185,10 @@ class Student {
         'fingerprint_quality': fingerprintQuality,
         'fingerprint_enrolled_at': fingerprintEnrolledAt,
         'photo_url': photoUrl,
+        'face_registered': faceRegistered,
+        'face_enrolled_at': faceEnrolledAt,
+        'face_embedding': faceEmbedding,
+        'attendance_method': attendanceMethod,
         'status': status,
       },
       'updated_at': DateTime.now().toIso8601String(),
@@ -182,6 +227,11 @@ class Student {
     final dName = (map['department'] ?? map['department_name'])?.toString();
     final lName = (map['academic_level'] ?? map['level_name'])?.toString();
 
+    final isFace = map['face_registered'] == true ||
+        map['face_registered'] == 1 ||
+        map['face_registered'] == '1' ||
+        map['face_registered'] == 'true';
+
     final rawId = map['id'];
     int? parsedId;
     String? parsedUuid;
@@ -212,6 +262,10 @@ class Student {
       fingerprintQuality: (map['fingerprint_quality'] as num?)?.toInt(),
       fingerprintEnrolledAt: map['fingerprint_enrolled_at']?.toString(),
       photoUrl: map['photo_url']?.toString(),
+      faceRegistered: isFace,
+      faceEnrolledAt: map['face_enrolled_at']?.toString(),
+      faceEmbedding: map['face_embedding']?.toString(),
+      attendanceMethod: map['attendance_method']?.toString() ?? 'all',
       collegeName: cName,
       departmentName: dName,
       levelName: lName,
@@ -247,6 +301,10 @@ class Student {
     int? fingerprintQuality,
     String? fingerprintEnrolledAt,
     String? photoUrl,
+    bool? faceRegistered,
+    String? faceEnrolledAt,
+    String? faceEmbedding,
+    String? attendanceMethod,
     String? collegeName,
     String? departmentName,
     String? levelName,
@@ -276,6 +334,10 @@ class Student {
           ? null
           : fingerprintEnrolledAt ?? this.fingerprintEnrolledAt,
       photoUrl: photoUrl ?? this.photoUrl,
+      faceRegistered: faceRegistered ?? this.faceRegistered,
+      faceEnrolledAt: faceEnrolledAt ?? this.faceEnrolledAt,
+      faceEmbedding: faceEmbedding ?? this.faceEmbedding,
+      attendanceMethod: attendanceMethod ?? this.attendanceMethod,
       collegeName: collegeName ?? this.collegeName,
       departmentName: departmentName ?? this.departmentName,
       levelName: levelName ?? this.levelName,

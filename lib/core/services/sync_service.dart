@@ -167,7 +167,29 @@ class SyncService extends ChangeNotifier {
         }
       } catch (_) {}
 
-      // 5. مزامنة طابور Hive العام
+      // 5. مزامنة أجهزة البصمة ومحطات الحواسيب وهواتف الطلاب
+      try {
+        final devices = await _hive.getBiometricDevices();
+        for (final dev in devices) {
+          try {
+            await client.from('dawami_records').upsert(dev.toDawamiRecord(), onConflict: 'record_type,record_key');
+          } catch (_) {}
+        }
+        final stations = await _hive.getComputerStations();
+        for (final cs in stations) {
+          try {
+            await client.from('dawami_records').upsert(cs.toDawamiRecord(), onConflict: 'record_type,record_key');
+          } catch (_) {}
+        }
+        final mobiles = await _hive.getMobileDevices();
+        for (final mob in mobiles) {
+          try {
+            await client.from('dawami_records').upsert(mob.toDawamiRecord(), onConflict: 'record_type,record_key');
+          } catch (_) {}
+        }
+      } catch (_) {}
+
+      // 6. مزامنة طابور Hive العام
       try {
         await _hive.syncWithSupabase();
       } catch (_) {}

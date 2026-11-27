@@ -1,8 +1,12 @@
 enum UserRole {
   superAdmin,
+  universityAdmin,
+  studentAffairs,
+  biometricAdmin,
+  supervisor,
+  student,
   attendanceOfficer,
   registrationStaff,
-  supervisor,
   viewer,
 }
 
@@ -10,13 +14,21 @@ class RoleManager {
   static String getRoleDisplayName(UserRole role) {
     switch (role) {
       case UserRole.superAdmin:
-        return 'مدير';
-      case UserRole.registrationStaff:
-        return 'مسجل';
+        return 'مدير النظام';
+      case UserRole.universityAdmin:
+        return 'إدارة الجامعة';
+      case UserRole.studentAffairs:
+        return 'مسؤول شؤون الطلاب';
+      case UserRole.biometricAdmin:
+        return 'مسؤول أجهزة البصمة';
       case UserRole.supervisor:
-        return 'مشرف';
+        return 'المشرف';
+      case UserRole.student:
+        return 'الطالب';
       case UserRole.attendanceOfficer:
         return 'مشرف الحضور';
+      case UserRole.registrationStaff:
+        return 'مسجل شؤون الطلاب';
       case UserRole.viewer:
         return 'زائر';
     }
@@ -27,12 +39,23 @@ class RoleManager {
       case 'super_admin':
       case 'superadmin':
         return UserRole.superAdmin;
+      case 'university_admin':
+      case 'universityadmin':
+        return UserRole.universityAdmin;
+      case 'student_affairs':
+      case 'studentaffairs':
+        return UserRole.studentAffairs;
+      case 'biometric_admin':
+      case 'biometricadmin':
+        return UserRole.biometricAdmin;
+      case 'supervisor':
+        return UserRole.supervisor;
+      case 'student':
+        return UserRole.student;
       case 'attendance_officer':
         return UserRole.attendanceOfficer;
       case 'registration_staff':
         return UserRole.registrationStaff;
-      case 'supervisor':
-        return UserRole.supervisor;
       case 'viewer':
       default:
         return UserRole.viewer;
@@ -43,56 +66,73 @@ class RoleManager {
     switch (role) {
       case UserRole.superAdmin:
         return 'super_admin';
+      case UserRole.universityAdmin:
+        return 'university_admin';
+      case UserRole.studentAffairs:
+        return 'student_affairs';
+      case UserRole.biometricAdmin:
+        return 'biometric_admin';
+      case UserRole.supervisor:
+        return 'supervisor';
+      case UserRole.student:
+        return 'student';
       case UserRole.attendanceOfficer:
         return 'attendance_officer';
       case UserRole.registrationStaff:
         return 'registration_staff';
-      case UserRole.supervisor:
-        return 'supervisor';
       case UserRole.viewer:
         return 'viewer';
     }
   }
 
-  // Permissions based on PDF page 5:
-  // Super Admin: كامل الصلاحيات بما فيها الحذف
-  // مسؤول الحضور: إدارة وتعديل سجلات الحضور
-  // موظف تسجيل: تسجيل الحضور والغياب والانصراف
-  // مشرف: متابعة وإشراف
-  // عرض فقط: الاطلاع دون تعديل
-
   static bool canDelete(UserRole role) {
-    return role != UserRole.viewer;
+    return role == UserRole.superAdmin || role == UserRole.universityAdmin;
   }
 
   static bool canManageStudents(UserRole role) {
-    return role != UserRole.viewer;
-  }
-
-  static bool canEditAttendance(UserRole role) {
-    return role == UserRole.superAdmin || role == UserRole.attendanceOfficer;
-  }
-
-  static bool canRecordAttendance(UserRole role) {
     return role == UserRole.superAdmin ||
-        role == UserRole.attendanceOfficer ||
+        role == UserRole.universityAdmin ||
+        role == UserRole.studentAffairs ||
         role == UserRole.registrationStaff;
   }
 
-  static bool canManageLectures(UserRole role) {
-    return role == UserRole.superAdmin || role == UserRole.attendanceOfficer;
+  static bool canManageBiometricDevices(UserRole role) {
+    return role == UserRole.superAdmin ||
+        role == UserRole.universityAdmin ||
+        role == UserRole.biometricAdmin;
+  }
+
+  static bool canEditAttendance(UserRole role) {
+    return role == UserRole.superAdmin ||
+        role == UserRole.universityAdmin ||
+        role == UserRole.attendanceOfficer ||
+        role == UserRole.supervisor;
+  }
+
+  static bool canRecordAttendance(UserRole role) {
+    return role != UserRole.viewer && role != UserRole.student;
+  }
+
+  static bool canStudentSelfAttend(UserRole role) {
+    return role == UserRole.student;
   }
 
   static bool canViewReports(UserRole role) {
-    return true; // All roles can view reports
+    return role != UserRole.student;
   }
 
   static bool canExportData(UserRole role) {
-    return role != UserRole.viewer;
+    return role == UserRole.superAdmin ||
+        role == UserRole.universityAdmin ||
+        role == UserRole.studentAffairs ||
+        role == UserRole.attendanceOfficer;
   }
 
   static bool canAccessSettings(UserRole role) {
-    return role == UserRole.superAdmin;
+    return role == UserRole.superAdmin || role == UserRole.universityAdmin;
+  }
+
+  static bool canViewAuditLogs(UserRole role) {
+    return role == UserRole.superAdmin || role == UserRole.universityAdmin;
   }
 }
-

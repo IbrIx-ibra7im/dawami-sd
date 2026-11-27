@@ -9,6 +9,7 @@ import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 
 import '../fingerprint/fingerprint_screen.dart';
+import '../face_attendance/face_attendance_screen.dart';
 import '../attendance/attendance_list_screen.dart';
 import '../students/students_list_screen.dart';
 import '../dashboard/dashboard_screen.dart';
@@ -284,6 +285,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
+
+                    if (repo.isFaceEnabled) ...[
+                      const SizedBox(height: 12),
+                      _buildMainActionButton(
+                        context: context,
+                        title: 'تسجيل الحضور بالتعرف على الوجه',
+                        subtitle: 'التعرف التلقائي المباشر عبر الكاميرا دون لمس',
+                        icon: Icons.face_rounded,
+                        gradient: const LinearGradient(
+                          colors: [AppColors.darkBlue, AppColors.primaryBlue],
+                          begin: Alignment.topRight,
+                          end: Alignment.bottomLeft,
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const FaceAttendanceScreen()),
+                          );
+                        },
+                      ),
+                    ],
 
                     const SizedBox(height: 16),
 

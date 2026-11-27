@@ -81,23 +81,21 @@ class PdfReportHelper {
 
           // Attendance Table
           pw.TableHelper.fromTextArray(
-            headers: ['#', 'الرقم الجامعي', 'اسم الطالب', 'وقت الحضور', 'وقت الانصراف', 'طريقة الحضور', 'الحالة'],
+            headers: ['#', 'الرقم الجامعي', 'اسم الطالب', 'وقت الحضور', 'وقت الانصراف', 'مدة البقاء', 'وسيلة التسجيل', 'الحالة'],
             data: List.generate(records.length, (index) {
               final r = records[index];
-              final methodText = r.method == 'qr'
-                  ? 'QR كود'
-                  : (r.method == 'fingerprint' ? 'بصمة' : 'يدوي');
               final inTime = r.checkIn.length >= 16 ? r.checkIn.substring(11, 16) : r.checkIn;
               final outTime = (r.checkOut != null && r.checkOut!.length >= 16)
                   ? r.checkOut!.substring(11, 16)
-                  : (r.checkOut != null ? r.checkOut! : 'لم ينصرف');
+                  : (r.checkOut != null ? r.checkOut! : 'متواجد حالياً');
               return [
                 '${index + 1}',
                 r.universityId ?? '-',
                 r.studentName ?? 'طالب غير محدد',
                 inTime,
                 outTime,
-                methodText,
+                r.durationFormatted,
+                r.methodDisplayName,
                 r.status,
               ];
             }),

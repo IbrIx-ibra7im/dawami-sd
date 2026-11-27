@@ -20,7 +20,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _uniController;
   bool _isCheckingUpdate = false;
   bool _autoCheckUpdates = true;
-  String _currentAppVersion = '1.0.0';
+  String _currentAppVersion = '1.1.0';
 
   @override
   void initState() {
@@ -261,6 +261,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(val ? 'تم تفعيل الباركود وإظهاره في شاشة الحضور' : 'تم إيقاف وإخفاء الباركود من شاشة الحضور'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: repo.isFaceEnabled ? AppColors.darkBlue.withAlpha(15) : Colors.grey.withAlpha(15),
+                    secondary: Icon(
+                      Icons.face_rounded,
+                      color: repo.isFaceEnabled ? AppColors.primaryBlue : Colors.grey,
+                      size: 28,
+                    ),
+                    title: const Text(
+                      'تسجيل الحضور بالتعرف على الوجه (بصمة الوجه)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      repo.isFaceEnabled
+                          ? 'مفعلة وتظهر في شاشة تسجيل الحضور والكاميرا المباشرة'
+                          : 'معطلة ومخفية تماماً من شاشة الحضور',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: repo.isFaceEnabled ? AppColors.primaryBlue : Colors.grey,
+                      ),
+                    ),
+                    value: repo.isFaceEnabled,
+                    // ignore: deprecated_member_use
+                    activeColor: AppColors.primaryBlue,
+                    onChanged: (val) async {
+                      try {
+                        await repo.toggleFaceMethod(val);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(val ? 'تم تفعيل بصمة الوجه وإظهارها في شاشة الحضور' : 'تم إيقاف وإخفاء بصمة الوجه من شاشة الحضور'),
                               backgroundColor: AppColors.success,
                             ),
                           );

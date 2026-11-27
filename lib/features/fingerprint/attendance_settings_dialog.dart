@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/services/update_service.dart';
 import '../../data/models/update_info.dart';
 import '../settings/widgets/update_dialog.dart';
+import '../../data/repositories/app_repository.dart';
 import 'fingerprint_provider.dart';
 import 'fingerprint_screen.dart';
 
@@ -113,6 +114,7 @@ class _AttendanceSettingsDialogState extends State<AttendanceSettingsDialog> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final fpProvider = context.watch<FingerprintProvider>();
+    final repo = context.watch<AppRepository>();
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -239,6 +241,97 @@ class _AttendanceSettingsDialogState extends State<AttendanceSettingsDialog> {
                             subtitle: 'المسح عبر قارئ الباركود الضوئي USB أو الكاميرا',
                             icon: Icons.qr_code_scanner_rounded,
                             activeColor: AppColors.primaryBlue,
+                          ),
+                          if (repo.isFaceEnabled) ...[
+                            const Divider(height: 1),
+                            _buildModeOption(
+                              mode: AttendanceInputMode.face,
+                              title: 'بصمة الوجه بالكاميرا (Face Recognition)',
+                              subtitle: 'التعرف المباشر على ملامح وجه الطالب بالكاميرا وتسجيل الحضور آلياً',
+                              icon: Icons.face_rounded,
+                              activeColor: Colors.teal,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Active Methods Toggles
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? AppColors.darkBg : AppColors.lightBg,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'تفعيل/تعطيل وسائل تسجيل الحضور:',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          SwitchListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('بصمة الإصبع الحيوية', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            value: repo.isFingerprintEnabled,
+                            // ignore: deprecated_member_use
+                            activeColor: AppColors.turquoise,
+                            onChanged: (val) async {
+                              try {
+                                await repo.toggleFingerprintMethod(val);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          SwitchListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('بطاقة الباركود و QR', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            value: repo.isBarcodeEnabled,
+                            // ignore: deprecated_member_use
+                            activeColor: Colors.purple,
+                            onChanged: (val) async {
+                              try {
+                                await repo.toggleBarcodeMethod(val);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          SwitchListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('بصمة الوجه بالكاميرا', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            value: repo.isFaceEnabled,
+                            // ignore: deprecated_member_use
+                            activeColor: AppColors.primaryBlue,
+                            onChanged: (val) async {
+                              try {
+                                await repo.toggleFaceMethod(val);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                                  );
+                                }
+                              }
+                            },
                           ),
                         ],
                       ),

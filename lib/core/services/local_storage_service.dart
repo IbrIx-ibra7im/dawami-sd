@@ -81,6 +81,10 @@ class LocalStorageService {
   }
 
   /// جلب سجلات الحضور المحفوظة محلياً
+  Future<void> saveAttendanceRecordDirect(AttendanceRecord record) async {
+    await _hive.saveSingleAttendanceRecord(record);
+  }
+
   Future<List<AttendanceRecord>> getAttendanceRecords({
     int? sessionId,
     String? date,

@@ -3,9 +3,18 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+
+[assembly: AssemblyTitle("دوامي - نظام إدارة حضور وغياب الطلاب الذكي")]
+[assembly: AssemblyDescription("نظام دوامي لإدارة الحضور والانصراف بالتعرف على الوجه وبصمة الإصبع والباركود - جامعة دنقلا")]
+[assembly: AssemblyCompany("جامعة دنقلا - Dawami Systems")]
+[assembly: AssemblyProduct("Dawami دوامي")]
+[assembly: AssemblyCopyright("Copyright (C) 2026 جامعة دنقلا - كلية علوم الحاسوب والتنمية البشرية")]
+[assembly: AssemblyVersion("1.1.0.0")]
+[assembly: AssemblyFileVersion("1.1.0.0")]
 
 class Program
 {
@@ -62,8 +71,8 @@ class Program
             serverThread.IsBackground = true;
             serverThread.Start();
 
-            // Find Microsoft Edge executable
-            string edgePath = GetEdgeExecutablePath();
+            // Find Microsoft Edge or Google Chrome executable
+            string browserPath = GetBrowserExecutablePath();
             string profileDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "DawamiApp",
@@ -72,9 +81,9 @@ class Program
             Directory.CreateDirectory(profileDir);
 
             ProcessStartInfo psi = new ProcessStartInfo();
-            if (!string.IsNullOrEmpty(edgePath) && File.Exists(edgePath))
+            if (!string.IsNullOrEmpty(browserPath) && File.Exists(browserPath))
             {
-                psi.FileName = edgePath;
+                psi.FileName = browserPath;
                 psi.Arguments = string.Format(
                     "--app=\"{0}\" --user-data-dir=\"{1}\" --window-size=1360,850 --no-first-run --no-default-browser-check",
                     url,
@@ -114,13 +123,18 @@ class Program
         return port;
     }
 
-    private static string GetEdgeExecutablePath()
+    private static string GetBrowserExecutablePath()
     {
         string[] candidates = new string[]
         {
+            // Microsoft Edge candidates
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Edge", "Application", "msedge.exe")
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "Edge", "Application", "msedge.exe"),
+            // Google Chrome candidates
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe")
         };
 
         foreach (string path in candidates)

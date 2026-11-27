@@ -5,11 +5,14 @@ import '../../core/constants/app_colors.dart';
 import '../../core/permissions/role_manager.dart';
 import '../../core/utils/date_helper.dart';
 import '../../data/models/attendance_record.dart';
+import '../../data/models/student.dart';
 import '../../data/remote/supabase_service.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 import '../../widgets/sync_status_card.dart';
 import 'audit_logs_screen.dart';
+import '../face_attendance/face_attendance_screen.dart';
+import '../dashboard/widgets/photo_verification_dialog.dart';
 
 class AttendanceListScreen extends StatefulWidget {
   const AttendanceListScreen({super.key});
@@ -30,12 +33,14 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final records = repo.todayAttendance;
 
-    // Filter according to selected tab (اليوم / الكل / البصمة / QR)
+    // Filter according to selected tab (اليوم / الكل / البصمة / بصمة الوجه / QR)
     List<AttendanceRecord> displayedRecords = records;
     if (_selectedTab == 'البصمة') {
       displayedRecords = records.where((r) => r.method == 'fingerprint').toList();
+    } else if (_selectedTab == 'بصمة الوجه') {
+      displayedRecords = records.where((r) => r.method == 'face').toList();
     } else if (_selectedTab == 'QR') {
-      displayedRecords = records.where((r) => r.method == 'qr').toList();
+      displayedRecords = records.where((r) => r.method == 'qr' || r.method == 'barcode_qr').toList();
     }
 
     final canDelete = RoleManager.canDelete(repo.currentRole);
@@ -125,6 +130,8 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                 _buildTabChip('الكل'),
                 const SizedBox(width: 8),
                 _buildTabChip('البصمة'),
+                const SizedBox(width: 8),
+                _buildTabChip('بصمة الوجه'),
                 const SizedBox(width: 8),
                 _buildTabChip('QR'),
               ],
@@ -234,6 +241,21 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
           ),
         ],
       ),
+      floatingActionButton: repo.isFaceEnabled
+          ? FloatingActionButton.extended(
+              heroTag: 'face_attendance_btn',
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.face_rounded),
+              label: const Text('تسجيل بالوجه', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FaceAttendanceScreen()),
+                );
+              },
+            )
+          : null,
     );
   }
 
@@ -346,7 +368,62 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                           ),
                         ),
                       DataCell(Text('${index + 1}')),
-                      DataCell(Text(r.studentName ?? 'طالب', style: const TextStyle(fontWeight: FontWeight.w600))),
+                      DataCell(Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          InkWell(
+                            onTap: () {
+                              Student? student;
+                              for (final s in repo.students) {
+                                if (s.id == r.studentId || (s.universityId.isNotEmpty && s.universityId == r.universityId)) {
+                                  student = s;
+                                  break;
+                                }
+                              }
+                              final photo = (student?.photoUrl != null && student!.photoUrl!.isNotEmpty)
+                                  ? student.photoUrl!
+                                  : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(r.studentName ?? "Student")}&background=0D8ABC&color=fff&size=256';
+
+                              PhotoVerificationDialog.show(
+                                context,
+                                photoUrl: photo,
+                                studentName: r.studentName ?? 'طالب',
+                                universityId: r.universityId ?? '-',
+                                collegeName: student?.collegeName,
+                                departmentName: student?.departmentName,
+                                attendanceTime: inTime,
+                                attendanceMethod: method,
+                                actionType: r.status,
+                                livenessScore: 0.98,
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Tooltip(
+                              message: 'انقر لتكبير وفحص صحة وحيوية الصورة',
+                              child: Stack(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 15,
+                                    backgroundColor: AppColors.primaryBlue.withAlpha(25),
+                                    backgroundImage: NetworkImage(
+                                      (repo.students.any((s) => (s.id == r.studentId || s.universityId == r.universityId) && s.photoUrl != null && s.photoUrl!.isNotEmpty))
+                                          ? repo.students.firstWhere((s) => (s.id == r.studentId || s.universityId == r.universityId)).photoUrl!
+                                          : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(r.studentName ?? "طالب")}&background=0D8ABC&color=fff&size=256',
+                                    ),
+                                  ),
+                                  const Positioned(
+                                    bottom: 0,
+                                    right: 0,
+                                    child: Icon(Icons.check_circle, size: 10, color: AppColors.success),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(r.studentName ?? 'طالب', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ],
+                      )),
                       DataCell(Text(r.universityId ?? '-')),
                       DataCell(Row(
                         mainAxisSize: MainAxisSize.min,
@@ -415,9 +492,6 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
     bool isDark,
     bool canDelete,
   ) {
-    final firstLetter = record.studentName != null && record.studentName!.isNotEmpty
-        ? record.studentName![0]
-        : 'ط';
     final isSelected = _selectedRecordIds.contains(record.id);
 
     String methodLabel = record.method == 'qr'
@@ -464,15 +538,52 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                     },
                   ),
                 ],
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: AppColors.primaryBlue.withAlpha(20),
-                  child: Text(
-                    firstLetter,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: AppColors.primaryBlue,
+                InkWell(
+                  onTap: () {
+                    Student? student;
+                    for (final s in repo.students) {
+                      if (s.id == record.studentId || (s.universityId.isNotEmpty && s.universityId == record.universityId)) {
+                        student = s;
+                        break;
+                      }
+                    }
+                    final photo = (student?.photoUrl != null && student!.photoUrl!.isNotEmpty)
+                        ? student.photoUrl!
+                        : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(record.studentName ?? "Student")}&background=0D8ABC&color=fff&size=256';
+
+                    PhotoVerificationDialog.show(
+                      context,
+                      photoUrl: photo,
+                      studentName: record.studentName ?? 'طالب',
+                      universityId: record.universityId ?? '-',
+                      collegeName: student?.collegeName,
+                      departmentName: student?.departmentName,
+                      attendanceTime: record.attendanceTime,
+                      attendanceMethod: methodLabel,
+                      actionType: record.status,
+                      livenessScore: 0.98,
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(24),
+                  child: Tooltip(
+                    message: 'انقر لتكبير وفحص صحة وحيوية الصورة',
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: AppColors.primaryBlue.withAlpha(25),
+                          backgroundImage: NetworkImage(
+                            (repo.students.any((s) => (s.id == record.studentId || s.universityId == record.universityId) && s.photoUrl != null && s.photoUrl!.isNotEmpty))
+                                ? repo.students.firstWhere((s) => (s.id == record.studentId || s.universityId == record.universityId)).photoUrl!
+                                : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(record.studentName ?? "طالب")}&background=0D8ABC&color=fff&size=256',
+                          ),
+                        ),
+                        const Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Icon(Icons.check_circle, size: 12, color: AppColors.success),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -939,6 +1050,33 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => _openAttendanceSettingsSheet(context),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: repo.isFaceEnabled ? AppColors.primaryBlue.withAlpha(20) : Colors.grey.withAlpha(20),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.face_rounded, size: 14, color: repo.isFaceEnabled ? AppColors.primaryBlue : Colors.grey),
+                      const SizedBox(width: 4),
+                      Text(
+                        repo.isFaceEnabled ? 'الوجه: مفعّل' : 'الوجه: معطّل',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: repo.isFaceEnabled ? AppColors.primaryBlue : Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               const Spacer(),
               // Sync Action Button
               OutlinedButton.icon(
@@ -1111,6 +1249,31 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                           onChanged: (val) async {
                             try {
                               await repo.toggleBarcodeMethod(val);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: AppColors.danger),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        SwitchListTile(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          tileColor: repo.isFaceEnabled ? AppColors.primaryBlue.withAlpha(15) : Colors.grey.withAlpha(10),
+                          secondary: Icon(Icons.face_rounded, color: repo.isFaceEnabled ? AppColors.primaryBlue : Colors.grey),
+                          title: const Text('تسجيل الحضور ببصمة الوجه (الكاميرا)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          subtitle: Text(
+                            repo.isFaceEnabled ? 'مفعلة وتظهر في شاشة تسجيل الحضور والكاميرا' : 'معطلة ومخفية من شاشة تسجيل الحضور',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          value: repo.isFaceEnabled,
+                          // ignore: deprecated_member_use
+                          activeColor: AppColors.primaryBlue,
+                          onChanged: (val) async {
+                            try {
+                              await repo.toggleFaceMethod(val);
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(

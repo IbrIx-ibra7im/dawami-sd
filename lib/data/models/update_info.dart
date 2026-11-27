@@ -1,9 +1,11 @@
-/// نموذج معلومات إصدار وتحديث تطبيق دوامي من مستودع GitHub
+import 'package:flutter/foundation.dart';
+
+/// نموذج معلومات إصدار وتحديث تطبيق دوامي من مستودع GitHub Releases
 class AppReleaseInfo {
   final String tagName; // رقم الإصدار من GitHub (مثال: v1.1.0 أو 1.1.0)
   final String cleanVersion; // رقم الإصدار بعد إزالة v والرموز (مثال: 1.1.0)
   final String name; // عنوان الإصدار
-  final String body; // تفاصيل وملاحظات التحديث (Release Notes)
+  final String body; // تفاصيل وملاحظات التحديث (Release Notes / Changelog)
   final String htmlUrl; // رابط صفحة الإصدار على GitHub
   final String? apkDownloadUrl; // رابط تنزيل ملف APK المباشر من المرفقات (إن وجد)
   final String? apkFileName; // اسم ملف الـ APK
@@ -32,6 +34,9 @@ class AppReleaseInfo {
     this.hasExe = false,
   });
 
+  /// مسميات بديلة ومتوافقة مع المتطلبات
+  String get version => cleanVersion;
+  String get changelog => body;
   bool get hasDirectApk => hasApk;
   bool get hasDirectExe => hasExe;
 
@@ -45,6 +50,23 @@ class AppReleaseInfo {
     if (exeSize == null || exeSize == 0) return '';
     final mb = exeSize! / (1024 * 1024);
     return '${mb.toStringAsFixed(1)} ميجابايت';
+  }
+
+  /// الرابط المباشر لأول ملف تنفيذي مرفوع (.apk أو .exe) بحسب بيئة التشغيل، وفي حال عدم توفره يتم الاعتماد على رابط htmlUrl كبديل
+  String get downloadUrl {
+    if (!kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.windows && exeDownloadUrl != null && exeDownloadUrl!.isNotEmpty) {
+        return exeDownloadUrl!;
+      }
+      if (defaultTargetPlatform == TargetPlatform.android && apkDownloadUrl != null && apkDownloadUrl!.isNotEmpty) {
+        return apkDownloadUrl!;
+      }
+    }
+    if (apkDownloadUrl != null && apkDownloadUrl!.isNotEmpty) return apkDownloadUrl!;
+    if (exeDownloadUrl != null && exeDownloadUrl!.isNotEmpty) return exeDownloadUrl!;
+    return htmlUrl.isNotEmpty
+        ? htmlUrl
+        : 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/$tagName';
   }
 
   factory AppReleaseInfo.fromJson(Map<String, dynamic> json) {
@@ -83,7 +105,7 @@ class AppReleaseInfo {
       tagName: rawTag,
       cleanVersion: clean,
       name: json['name']?.toString() ?? 'تحديث جديد',
-      body: json['body']?.toString() ?? 'يتضمن هذا الإصدار تحسينات وإصلاحات جديدة لزيادة استقرار النظام.',
+      body: json['body']?.toString() ?? 'يتضمن هذا الإصدار تحسينات وإصلاحات جديدة لزيادة استقرار وسرعة النظام.',
       htmlUrl: releaseHtmlUrl,
       apkDownloadUrl: apkUrl,
       apkFileName: apkName,
@@ -96,11 +118,6 @@ class AppReleaseInfo {
       hasExe: exeUrl != null && exeUrl.isNotEmpty,
     );
   }
-
-  /// رابط موقع التحميل المعتمد للإصدار على GitHub
-  String get downloadUrl => htmlUrl.isNotEmpty
-      ? htmlUrl
-      : 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/$tagName';
 }
 
 enum UpdateCheckStatus {

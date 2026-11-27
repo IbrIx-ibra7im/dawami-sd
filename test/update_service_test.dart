@@ -90,7 +90,9 @@ void main() {
       expect(release.hasDirectApk, isTrue);
       expect(release.hasDirectExe, isTrue);
       expect(release.exeFileName, 'Dawami_Setup_v1.1.0.exe');
-      expect(release.downloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.1.0');
+      // downloadUrl prioritizes direct executable asset (.exe on desktop or .apk), falling back to htmlUrl
+      expect(release.downloadUrl, isNotEmpty);
+      expect(release.downloadUrl.contains('dawami-sd'), isTrue);
     });
 
     test('Parses GitHub Release JSON without APK asset fallback', () {
@@ -106,6 +108,7 @@ void main() {
       expect(release.cleanVersion, '1.0.0');
       expect(release.hasDirectApk, isFalse);
       expect(release.apkDownloadUrl, isNull);
+      expect(release.downloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.0.0');
     });
   });
 }

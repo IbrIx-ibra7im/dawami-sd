@@ -6,6 +6,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/utils/pdf_report_helper.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
+import '../face_attendance/widgets/student_face_enrollment_dialog.dart';
 
 class StudentCardDialog extends StatelessWidget {
   final Student student;
@@ -112,6 +113,55 @@ class StudentCardDialog extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: student.hasFingerprint ? AppColors.success.withAlpha(40) : Colors.white12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.fingerprint, size: 14, color: student.hasFingerprint ? AppColors.success : Colors.white60),
+                            const SizedBox(width: 4),
+                            Text(student.hasFingerprint ? 'بصمة مسجلة' : 'بدون بصمة', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: student.faceRegistered ? AppColors.turquoise.withAlpha(40) : Colors.white12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.face, size: 14, color: student.faceRegistered ? AppColors.turquoise : Colors.white60),
+                            const SizedBox(width: 4),
+                            Text(student.faceRegistered ? 'بصمة وجه مفعلة' : 'بدون وجه', style: const TextStyle(fontSize: 10, color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(25),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'طريقة الحضور المعتمدة: ${student.attendanceMethodDisplay}',
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   const Text(
                     'امسح الرمز لتسجيل الحضور فورياً',
                     style: TextStyle(color: Colors.white70, fontSize: 11),
@@ -121,6 +171,37 @@ class StudentCardDialog extends StatelessWidget {
             ),
 
             const SizedBox(height: 20),
+            OutlinedButton.icon(
+              icon: Icon(
+                student.faceRegistered ? Icons.face_retouching_natural_rounded : Icons.face_rounded,
+                color: student.faceRegistered ? AppColors.success : AppColors.turquoise,
+              ),
+              label: Text(
+                student.faceRegistered ? 'تحديث بصمة الوجه بالكاميرا' : 'تسجيل بصمة الوجه بالكاميرا',
+                style: TextStyle(
+                  color: student.faceRegistered ? AppColors.success : AppColors.turquoise,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+                side: BorderSide(
+                  color: student.faceRegistered ? AppColors.success : AppColors.turquoise,
+                ),
+              ),
+              onPressed: () async {
+                final profile = await StudentFaceEnrollmentDialog.show(
+                  context,
+                  student: student,
+                  isReEnrollment: student.faceRegistered,
+                );
+                if (profile != null && context.mounted) {
+                  Navigator.pop(context);
+                  await context.read<AppRepository>().refreshStudents();
+                }
+              },
+            ),
+            const SizedBox(height: 10),
             ElevatedButton.icon(
               icon: const Icon(Icons.print_outlined),
               label: const Text('طباعة البطاقة الرسمية (PDF)'),

@@ -11,6 +11,7 @@ import '../../data/models/academic_models.dart';
 import '../../data/models/lecture.dart';
 import '../../data/models/sync_and_auth_models.dart';
 import '../../data/models/biometric_models.dart';
+import '../../data/models/biometric_device.dart';
 import '../../core/permissions/role_manager.dart';
 import '../../core/services/sync_service.dart';
 
@@ -25,6 +26,7 @@ class AppRepository extends ChangeNotifier {
   String _deviceName = 'ZK-F18';
   bool _isFingerprintEnabled = true;
   bool _isBarcodeEnabled = true;
+  bool _isFaceEnabled = true;
 
   // Current logged in user (Requires authentication before entering control panel)
   bool _isLoggedIn = false;
@@ -47,12 +49,14 @@ class AppRepository extends ChangeNotifier {
   List<Lecture> _lectures = [];
   List<StudentFingerprint> _fingerprints = [];
   final List<BiometricVerificationLog> _biometricLogs = [];
+  List<BiometricDevice> _biometricDevices = [];
 
   // Getters
   String get universityName => _universityName;
   bool get isDarkMode => _isDarkMode;
   bool get isFingerprintEnabled => _isFingerprintEnabled;
   bool get isBarcodeEnabled => _isBarcodeEnabled;
+  bool get isFaceEnabled => _isFaceEnabled;
   String get deviceName => _deviceName;
   bool get isLoggedIn => _isLoggedIn;
   UserProfile get currentUser => _currentUser;
@@ -66,6 +70,7 @@ class AppRepository extends ChangeNotifier {
   List<Lecture> get lectures => _lectures;
   List<StudentFingerprint> get fingerprints => _fingerprints;
   List<BiometricVerificationLog> get biometricLogs => _biometricLogs;
+  List<BiometricDevice> get biometricDevices => _biometricDevices;
   List<Student> get studentsWithoutFingerprints => _students.where((s) => !s.hasFingerprint).toList();
   List<Student> get studentsWithFingerprints => _students.where((s) => s.hasFingerprint).toList();
   int get enrolledFingerprintsCount => _students.where((s) => s.hasFingerprint).length;
@@ -82,12 +87,22 @@ class AppRepository extends ChangeNotifier {
 
   // Statistics
   int get totalStudentsCount => _students.length;
-  int get presentCount => _todayAttendance.where((a) => a.status == 'حاضر').length;
-  int get lateCount => _todayAttendance.where((a) => a.status == 'متأخر').length;
-  int get absentCount => _todayAttendance.where((a) => a.status == 'غائب').length;
-  int get fingerprintAttendanceCount => _todayAttendance.where((a) => a.method == 'fingerprint').length;
-  int get qrAttendanceCount => _todayAttendance.where((a) => a.method == 'qr').length;
-  int get manualAttendanceCount => _todayAttendance.where((a) => a.method == 'manual').length;
+  int get presentCount => _todayAttendance.where((a) => a.status == 'حاضر' || a.status == 'متأخر').length;
+  int get departedCount => _todayAttendance.where((a) => a.checkOut != null && a.checkOut!.isNotEmpty).length;
+  int get currentlyPresentCount => _todayAttendance.where((a) => (a.status == 'حاضر' || a.status == 'متأخر') && (a.checkOut == null || a.checkOut!.isEmpty)).length;
+  int get lateCount => _todayAttendance.where((a) => a.status == 'متأخر' || a.delayMinutes > 0).length;
+  int get absentCount {
+    final diff = _students.length - presentCount;
+    return diff > 0 ? diff : 0;
+  }
+  int get connectedDevicesCount => _biometricDevices.where((d) => d.isConnected).length;
+  int get disconnectedDevicesCount => _biometricDevices.where((d) => !d.isConnected).length;
+
+  int get fingerprintAttendanceCount => _todayAttendance.where((a) => a.method.toLowerCase().startsWith('fingerprint')).length;
+  int get faceAttendanceCount => _todayAttendance.where((a) => a.method.toLowerCase() == 'face').length;
+  int get mobileAttendanceCount => _todayAttendance.where((a) => a.method.toLowerCase() == 'mobile').length;
+  int get qrAttendanceCount => _todayAttendance.where((a) => a.method.toLowerCase() == 'qr' || a.method.toLowerCase() == 'barcode_qr' || a.method.toLowerCase() == 'barcode').length;
+  int get manualAttendanceCount => _todayAttendance.where((a) => a.method.toLowerCase() == 'manual').length;
 
   Future<Set<String>> _pendingStudentDeletions() async {
     final pending = <String>{};
@@ -145,6 +160,11 @@ class AppRepository extends ChangeNotifier {
       try {
         final bcSetting = await _hive.getSetting('enable_barcode', defaultValue: 'true');
         _isBarcodeEnabled = bcSetting != 'false';
+      } catch (_) {}
+
+      try {
+        final faceSetting = await _hive.getSetting('enable_face', defaultValue: 'true');
+        _isFaceEnabled = faceSetting != 'false';
       } catch (_) {}
 
       try {
@@ -232,11 +252,21 @@ class AppRepository extends ChangeNotifier {
       await refreshStudents();
       await refreshAttendance();
       await refreshFingerprints();
+      await refreshBiometricDevices();
       notifyListeners();
     } catch (e) {
       if (kDebugMode) print('Error loading data: $e');
       notifyListeners();
     }
+  }
+
+  Future<void> refreshBiometricDevices() async {
+    try {
+      if (_hive.isInitialized) {
+        _biometricDevices = await _hive.getBiometricDevices();
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   Future<void> refreshStudents({String? query, int? collegeId, String? status}) async {
@@ -1192,8 +1222,8 @@ class AppRepository extends ChangeNotifier {
 
   // --- Settings & Attendance Methods Control ---
   Future<void> toggleFingerprintMethod(bool enabled) async {
-    if (!enabled && !_isBarcodeEnabled) {
-      throw Exception('لا يمكن تعطيل البصمة والباركود معاً. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
+    if (!enabled && !_isBarcodeEnabled && !_isFaceEnabled) {
+      throw Exception('لا يمكن تعطيل كافة وسائل الحضور. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
     }
     _isFingerprintEnabled = enabled;
     await _hive.setSetting('enable_fingerprint', enabled ? 'true' : 'false');
@@ -1204,13 +1234,25 @@ class AppRepository extends ChangeNotifier {
   }
 
   Future<void> toggleBarcodeMethod(bool enabled) async {
-    if (!enabled && !_isFingerprintEnabled) {
-      throw Exception('لا يمكن تعطيل البصمة والباركود معاً. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
+    if (!enabled && !_isFingerprintEnabled && !_isFaceEnabled) {
+      throw Exception('لا يمكن تعطيل كافة وسائل الحضور. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
     }
     _isBarcodeEnabled = enabled;
     await _hive.setSetting('enable_barcode', enabled ? 'true' : 'false');
     try {
       await _db.setSetting('enable_barcode', enabled ? 'true' : 'false');
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> toggleFaceMethod(bool enabled) async {
+    if (!enabled && !_isFingerprintEnabled && !_isBarcodeEnabled) {
+      throw Exception('لا يمكن تعطيل كافة وسائل الحضور. يجب الإبقاء على طريقة تسجيل واحدة على الأقل.');
+    }
+    _isFaceEnabled = enabled;
+    await _hive.setSetting('enable_face', enabled ? 'true' : 'false');
+    try {
+      await _db.setSetting('enable_face', enabled ? 'true' : 'false');
     } catch (_) {}
     notifyListeners();
   }

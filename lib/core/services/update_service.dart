@@ -25,10 +25,10 @@ class UpdateService {
     try {
       final info = await PackageInfo.fromPlatform();
       final version = info.version.trim();
-      _cachedCurrentVersion = version.isNotEmpty ? version : '1.0.0';
+      _cachedCurrentVersion = version.isNotEmpty ? version : '1.1.0';
     } catch (e) {
       if (kDebugMode) print('PackageInfo note: $e');
-      _cachedCurrentVersion = '1.0.0';
+      _cachedCurrentVersion = '1.1.0';
     }
     return _cachedCurrentVersion!;
   }

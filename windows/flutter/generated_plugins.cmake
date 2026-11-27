@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   app_links
   connectivity_plus
+  geolocator_windows
   local_auth_windows
   printing
   url_launcher_windows

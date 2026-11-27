@@ -9,23 +9,22 @@ import 'date_helper.dart';
 class CsvReportHelper {
   static String exportAttendanceToCsv(List<AttendanceRecord> records) {
     List<List<dynamic>> rows = [
-      ['المعرف', 'الرقم الجامعي', 'اسم الطالب', 'المحاضرة', 'القاعة', 'طريقة الحضور', 'الحالة', 'وقت الحضور', 'وقت الانصراف', 'حالة المزامنة']
+      ['المعرف', 'الرقم الجامعي', 'اسم الطالب', 'الموقع / المحطة', 'وسيلة التسجيل', 'الجهاز', 'الحالة', 'وقت الحضور', 'وقت الانصراف', 'مدة البقاء', 'التأخير', 'حالة المزامنة']
     ];
 
     for (var r in records) {
-      final method = r.method == 'qr'
-          ? 'QR Code'
-          : (r.method == 'fingerprint' ? 'بصمة' : 'يدوي');
       rows.add([
         r.id,
         r.universityId ?? '',
         r.studentName ?? '',
-        r.lectureName ?? '',
-        r.classroomName ?? '',
-        method,
+        r.locationName ?? r.classroomName ?? 'الحرم الجامعي',
+        r.methodDisplayName,
+        r.deviceName ?? r.deviceId,
         r.status,
         DateHelper.formatTimeString(r.checkIn),
-        r.checkOut != null ? DateHelper.formatTimeString(r.checkOut) : 'لم ينصرف بعد',
+        r.checkOut != null ? DateHelper.formatTimeString(r.checkOut) : 'متواجد حالياً',
+        r.durationFormatted,
+        r.delayFormatted,
         r.isSynced ? 'متزامن' : 'محلي (معلق)',
       ]);
     }
@@ -44,7 +43,7 @@ class CsvReportHelper {
   /// Exports attendance as a genuine native Microsoft Excel (.xlsx) file
   static Uint8List exportAttendanceToExcel(List<AttendanceRecord> records) {
     final excel = xl.Excel.createExcel();
-    const sheetName = 'سجل الحضور اليومي';
+    const sheetName = 'سجل الحضور والانصراف';
     final sheet = excel[sheetName];
     excel.setDefaultSheet(sheetName);
     if (excel.tables.containsKey('Sheet1')) {
@@ -55,29 +54,30 @@ class CsvReportHelper {
       xl.TextCellValue('المعرف'),
       xl.TextCellValue('الرقم الجامعي'),
       xl.TextCellValue('اسم الطالب'),
-      xl.TextCellValue('المحاضرة'),
-      xl.TextCellValue('القاعة'),
-      xl.TextCellValue('طريقة الحضور'),
+      xl.TextCellValue('الموقع / المحطة'),
+      xl.TextCellValue('وسيلة التسجيل'),
+      xl.TextCellValue('الجهاز'),
       xl.TextCellValue('الحالة'),
       xl.TextCellValue('وقت الحضور'),
       xl.TextCellValue('وقت الانصراف'),
+      xl.TextCellValue('مدة البقاء'),
+      xl.TextCellValue('التأخير'),
       xl.TextCellValue('حالة المزامنة'),
     ]);
 
     for (var r in records) {
-      final method = r.method == 'qr'
-          ? 'QR Code'
-          : (r.method == 'fingerprint' ? 'بصمة' : 'يدوي');
       sheet.appendRow([
         xl.TextCellValue(r.id),
         xl.TextCellValue(r.universityId ?? ''),
         xl.TextCellValue(r.studentName ?? ''),
-        xl.TextCellValue(r.lectureName ?? ''),
-        xl.TextCellValue(r.classroomName ?? ''),
-        xl.TextCellValue(method),
+        xl.TextCellValue(r.locationName ?? r.classroomName ?? 'الحرم الجامعي'),
+        xl.TextCellValue(r.methodDisplayName),
+        xl.TextCellValue(r.deviceName ?? r.deviceId),
         xl.TextCellValue(r.status),
         xl.TextCellValue(DateHelper.formatTimeString(r.checkIn)),
-        xl.TextCellValue(r.checkOut != null ? DateHelper.formatTimeString(r.checkOut) : 'لم ينصرف بعد'),
+        xl.TextCellValue(r.checkOut != null ? DateHelper.formatTimeString(r.checkOut) : 'متواجد حالياً'),
+        xl.TextCellValue(r.durationFormatted),
+        xl.TextCellValue(r.delayFormatted),
         xl.TextCellValue(r.isSynced ? 'متزامن' : 'محلي (معلق)'),
       ]);
     }

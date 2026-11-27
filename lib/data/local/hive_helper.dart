@@ -10,6 +10,11 @@ import '../models/academic_models.dart';
 import '../models/lecture.dart';
 import '../models/sync_and_auth_models.dart';
 import '../models/biometric_models.dart';
+import '../models/biometric_device.dart';
+import '../models/mobile_device.dart';
+import '../models/computer_station.dart';
+import '../models/face_profile.dart';
+import '../models/university_location.dart';
 import '../remote/supabase_service.dart';
 import '../../core/utils/date_helper.dart';
 
@@ -31,6 +36,11 @@ class HiveHelper {
   late Box<String> _settingsBox;
   late Box<Map> _fingerprintsBox;
   late Box<Map> _verificationLogsBox;
+  late Box<Map> _biometricDevicesBox;
+  late Box<Map> _mobileDevicesBox;
+  late Box<Map> _computerStationsBox;
+  late Box<Map> _faceProfilesBox;
+  late Box<Map> _locationsBox;
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
@@ -71,6 +81,11 @@ class HiveHelper {
     _settingsBox = await Hive.openBox<String>('settings_box');
     _fingerprintsBox = await Hive.openBox<Map>('fingerprints_box');
     _verificationLogsBox = await Hive.openBox<Map>('verification_logs_box');
+    _biometricDevicesBox = await Hive.openBox<Map>('biometric_devices_box');
+    _mobileDevicesBox = await Hive.openBox<Map>('mobile_devices_box');
+    _computerStationsBox = await Hive.openBox<Map>('computer_stations_box');
+    _faceProfilesBox = await Hive.openBox<Map>('face_profiles_box');
+    _locationsBox = await Hive.openBox<Map>('locations_box');
 
     _isInitialized = true;
 
@@ -602,6 +617,18 @@ class HiveHelper {
     }
   }
 
+  Future<void> saveSingleAttendanceRecord(AttendanceRecord record) async {
+    if (!_isInitialized) return;
+    final map = record.toMap();
+    await _attendanceBox.put(record.id, map);
+    await _queueSyncItem(
+      operation: 'UPSERT',
+      tableName: 'attendance',
+      recordId: record.id,
+      payload: map,
+    );
+  }
+
   Future<int> deleteMultipleStudents(
     List<int> ids, {
     Map<int, Student>? studentsById,
@@ -1073,5 +1100,193 @@ class HiveHelper {
       return list.sublist(0, limit);
     }
     return list;
+  }
+
+  // ==========================================
+  // --- أجهزة البصمة (Biometric Devices) ---
+  // ==========================================
+  Future<void> saveBiometricDevice(BiometricDevice device) async {
+    if (!_isInitialized) return;
+    await _biometricDevicesBox.put(device.id, device.toMap());
+    await _queueSyncItem(
+      operation: 'UPSERT',
+      tableName: 'biometric_devices',
+      recordId: device.id,
+      payload: device.toMap(),
+    );
+  }
+
+  Future<List<BiometricDevice>> getBiometricDevices() async {
+    if (!_isInitialized) return [];
+    if (_biometricDevicesBox.isEmpty) {
+      // Seed default devices if empty
+      final defaultDevices = [
+        const BiometricDevice(
+          id: 'DEV-F18-MAIN',
+          deviceName: 'جهاز بصمة البوابة الرئيسية (ZK-F18)',
+          serialNumber: 'ZKF18-9900214',
+          vendor: 'ZKTeco',
+          model: 'ZK-F18',
+          ipAddress: '192.168.1.201',
+          port: 4370,
+          locationName: 'البوابة الرئيسية للكلية',
+          status: 'متصل',
+        ),
+        const BiometricDevice(
+          id: 'DEV-ZK9500-LAB',
+          deviceName: 'قارئ بصمات USB مختبر الشبكات (ZK9500)',
+          serialNumber: 'ZK9500-881240',
+          vendor: 'ZKTeco',
+          model: 'ZK9500 Optical Reader',
+          ipAddress: '127.0.0.1',
+          port: 4370,
+          locationName: 'مختبر الشبكات والحاسوب',
+          status: 'متصل',
+        ),
+        const BiometricDevice(
+          id: 'DEV-ANVIZ-LIB',
+          deviceName: 'جهاز بصمة صالة المطالعة والمكتبة',
+          serialNumber: 'ANVIZ-332190',
+          vendor: 'Anviz',
+          model: 'Anviz W2 Pro',
+          ipAddress: '192.168.1.205',
+          port: 5010,
+          locationName: 'مكتبة الكلية',
+          status: 'غير متصل',
+        ),
+      ];
+      for (final d in defaultDevices) {
+        await _biometricDevicesBox.put(d.id, d.toMap());
+      }
+    }
+
+    final list = _biometricDevicesBox.values
+        .map((m) => BiometricDevice.fromMap(Map<dynamic, dynamic>.from(m)))
+        .toList();
+    return list;
+  }
+
+  Future<void> deleteBiometricDevice(String id) async {
+    if (!_isInitialized) return;
+    await _biometricDevicesBox.delete(id);
+    await _queueSyncItem(
+      operation: 'DELETE',
+      tableName: 'biometric_devices',
+      recordId: id,
+      payload: {'id': id},
+    );
+  }
+
+  // ==========================================
+  // --- ملفات التعرف على الوجه (Face Profiles) ---
+  // ==========================================
+  Future<void> saveFaceProfile(FaceProfile profile) async {
+    if (!_isInitialized) return;
+    await _faceProfilesBox.put(profile.universityId, profile.toMap());
+    await _queueSyncItem(
+      operation: 'UPSERT',
+      tableName: 'face_profiles',
+      recordId: profile.universityId,
+      payload: profile.toMap(),
+    );
+  }
+
+  Future<FaceProfile?> getFaceProfile(String universityId) async {
+    if (!_isInitialized) return null;
+    final raw = _faceProfilesBox.get(universityId);
+    if (raw == null) return null;
+    return FaceProfile.fromMap(Map<dynamic, dynamic>.from(raw));
+  }
+
+  Future<List<FaceProfile>> getAllFaceProfiles() async {
+    if (!_isInitialized) return [];
+    return _faceProfilesBox.values
+        .map((m) => FaceProfile.fromMap(Map<dynamic, dynamic>.from(m)))
+        .toList();
+  }
+
+  // ==========================================
+  // --- الهواتف المقترنة (Mobile Devices) ---
+  // ==========================================
+  Future<void> saveMobileDevice(MobileDevice device) async {
+    if (!_isInitialized) return;
+    await _mobileDevicesBox.put(device.universityId, device.toMap());
+    await _queueSyncItem(
+      operation: 'UPSERT',
+      tableName: 'mobile_devices',
+      recordId: device.universityId,
+      payload: device.toMap(),
+    );
+  }
+
+  Future<MobileDevice?> getMobileDeviceByStudent(String universityId) async {
+    if (!_isInitialized) return null;
+    final raw = _mobileDevicesBox.get(universityId);
+    if (raw == null) return null;
+    return MobileDevice.fromMap(Map<dynamic, dynamic>.from(raw));
+  }
+
+  Future<List<MobileDevice>> getMobileDevices() async {
+    if (!_isInitialized) return [];
+    return _mobileDevicesBox.values
+        .map((m) => MobileDevice.fromMap(Map<dynamic, dynamic>.from(m)))
+        .toList();
+  }
+
+  Future<void> deleteMobileDevice(String universityId) async {
+    if (!_isInitialized) return;
+    await _mobileDevicesBox.delete(universityId);
+  }
+
+  // ==========================================
+  // --- محطات الكمبيوتر (Computer Stations) ---
+  // ==========================================
+  Future<void> saveComputerStation(ComputerStation station) async {
+    if (!_isInitialized) return;
+    await _computerStationsBox.put(station.id, station.toMap());
+  }
+
+  Future<List<ComputerStation>> getComputerStations() async {
+    if (!_isInitialized) return [];
+    if (_computerStationsBox.isEmpty) {
+      final defaultStation = const ComputerStation(
+        id: 'STATION-01',
+        machineName: 'محطة تسجيل الحضور - المدخل الرئيسي',
+        machineId: 'PC-GATE-01',
+        ipAddress: '192.168.1.100',
+        locationName: 'البوابة الرئيسية',
+      );
+      await _computerStationsBox.put(defaultStation.id, defaultStation.toMap());
+    }
+    return _computerStationsBox.values
+        .map((m) => ComputerStation.fromMap(Map<dynamic, dynamic>.from(m)))
+        .toList();
+  }
+
+  // ==========================================
+  // --- النطاقات الجغرافية (University Locations) ---
+  // ==========================================
+  Future<void> saveUniversityLocation(UniversityLocation location) async {
+    if (!_isInitialized) return;
+    await _locationsBox.put(location.id, location.toMap());
+  }
+
+  Future<List<UniversityLocation>> getUniversityLocations() async {
+    if (!_isInitialized) return [];
+    if (_locationsBox.isEmpty) {
+      const defaultLoc = UniversityLocation(
+        id: 'LOC-DONGOLA-MAIN',
+        locationName: 'الحرم الجامعي الرئيسي - دنقلا',
+        campusName: 'جامعة دنقلا',
+        college: 'كلية علوم الحاسوب والتنمية البشرية',
+        latitude: 19.1678,
+        longitude: 30.4720,
+        radiusMeters: 500.0,
+      );
+      await _locationsBox.put(defaultLoc.id, defaultLoc.toMap());
+    }
+    return _locationsBox.values
+        .map((m) => UniversityLocation.fromMap(Map<dynamic, dynamic>.from(m)))
+        .toList();
   }
 }

@@ -14,6 +14,14 @@ import '../students/students_list_screen.dart';
 import '../students/student_credentials_screen.dart';
 import '../reports/reports_screen.dart';
 import '../authentication/login_screen.dart';
+import '../biometric_devices/biometric_devices_screen.dart';
+import '../face_attendance/face_attendance_screen.dart';
+import '../mobile_attendance/mobile_attendance_screen.dart';
+import '../computer_stations/computer_stations_screen.dart';
+import '../qr_scanner/qr_terminal_screen.dart';
+import '../../core/services/update_service.dart';
+import '../../data/models/update_info.dart';
+import '../settings/widgets/update_dialog.dart';
 
 class DesktopMainShell extends StatefulWidget {
   const DesktopMainShell({super.key});
@@ -24,6 +32,39 @@ class DesktopMainShell extends StatefulWidget {
 
 class _DesktopMainShellState extends State<DesktopMainShell> {
   int _selectedIndex = 0;
+  static bool _hasCheckedUpdatesOnStartup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_hasCheckedUpdatesOnStartup) {
+      _hasCheckedUpdatesOnStartup = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkUpdatesSilently();
+      });
+    }
+  }
+
+  Future<void> _checkUpdatesSilently() async {
+    try {
+      final updateService = UpdateService.instance;
+      final autoCheck = await updateService.isAutoCheckEnabled();
+      if (!autoCheck || !mounted) return;
+
+      final result = await updateService.checkForUpdate();
+      if (result.status == UpdateCheckStatus.updateAvailable &&
+          result.releaseInfo != null &&
+          mounted) {
+        UpdateDialog.show(
+          context,
+          currentVersion: result.currentVersion,
+          releaseInfo: result.releaseInfo!,
+        );
+      }
+    } catch (_) {
+      // التحقق التلقائي عند بدء التشغيل صامت ولا يزعج المستخدم بأي أخطاء شبكة
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -173,11 +214,16 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
                     children: [
                       _buildNavItem(0, 'الرئيسية', Icons.home_rounded),
                       _buildNavItem(1, 'لوحة التحكم والإحصائيات', Icons.dashboard_rounded),
-                      _buildNavItem(2, 'تسجيل الحضور بالبصمة', Icons.fingerprint_rounded),
-                      _buildNavItem(3, 'سجل الحضور', Icons.list_alt_rounded),
-                      _buildNavItem(4, 'إدارة الطلاب', Icons.people_alt_rounded),
-                      _buildNavItem(5, 'بصمات وبطاقات الطلاب (QR)', Icons.badge_rounded),
-                      _buildNavItem(6, 'التقارير الرسمية والطباعة', Icons.picture_as_pdf_rounded),
+                      _buildNavItem(2, 'إدارة أجهزة البصمة', Icons.settings_remote_rounded),
+                      _buildNavItem(3, 'الحضور بالكاميرا (الوجه)', Icons.face_retouching_natural_rounded),
+                      _buildNavItem(4, 'تسجيل هاتف الطالب (GPS)', Icons.smartphone_rounded),
+                      _buildNavItem(5, 'محطة الباركود وQR', Icons.qr_code_scanner_rounded),
+                      _buildNavItem(6, 'محطات الكمبيوتر', Icons.computer_rounded),
+                      _buildNavItem(7, 'تسجيل الحضور بالبصمة', Icons.fingerprint_rounded),
+                      _buildNavItem(8, 'سجلات الحضور والانصراف', Icons.list_alt_rounded),
+                      _buildNavItem(9, 'إدارة الطلاب', Icons.people_alt_rounded),
+                      _buildNavItem(10, 'بصمات وبطاقات الطلاب (QR)', Icons.badge_rounded),
+                      _buildNavItem(11, 'التقارير الرسمية والطباعة', Icons.picture_as_pdf_rounded),
                     ],
                   ),
                 ),
@@ -376,14 +422,24 @@ class _DesktopMainShellState extends State<DesktopMainShell> {
       case 1:
         return const DashboardScreen();
       case 2:
-        return const FingerprintScreen();
+        return const BiometricDevicesScreen();
       case 3:
-        return const AttendanceListScreen();
+        return const FaceAttendanceScreen();
       case 4:
-        return const StudentsListScreen();
+        return const MobileAttendanceScreen();
       case 5:
-        return const StudentCredentialsScreen();
+        return const QrTerminalScreen();
       case 6:
+        return const ComputerStationsScreen();
+      case 7:
+        return const FingerprintScreen();
+      case 8:
+        return const AttendanceListScreen();
+      case 9:
+        return const StudentsListScreen();
+      case 10:
+        return const StudentCredentialsScreen();
+      case 11:
         return const ReportsScreen();
       default:
         return DesktopHomeContent(

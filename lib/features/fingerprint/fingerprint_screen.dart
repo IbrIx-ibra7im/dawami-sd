@@ -15,10 +15,11 @@ import '../../core/services/update_service.dart';
 import '../../data/models/update_info.dart';
 import '../settings/widgets/update_dialog.dart';
 import '../../widgets/sync_status_card.dart';
+import '../face_attendance/face_attendance_screen.dart';
 
 import '../../data/models/biometric_models.dart';
 
-enum AttendanceInputMode { dual, fingerprint, barcode }
+enum AttendanceInputMode { dual, fingerprint, barcode, face }
 
 class FingerprintScreen extends StatefulWidget {
   final bool isInitialScreen;
@@ -265,13 +266,16 @@ class _FingerprintScreenState extends State<FingerprintScreen>
 
     final fpEnabled = repo.isFingerprintEnabled;
     final bcEnabled = repo.isBarcodeEnabled;
+    final faceEnabled = repo.isFaceEnabled;
 
-    // تكييف الوضع التلقائي إذا تم تعطيل إحدى الوسيلتين بواسطة الإدارة
+    // تكييف الوضع التلقائي إذا تم تعطيل إحدى الوسائل بواسطة الإدارة
     AttendanceInputMode activeMode = _currentMode;
-    if (!fpEnabled && bcEnabled) {
-      activeMode = AttendanceInputMode.barcode;
-    } else if (fpEnabled && !bcEnabled) {
-      activeMode = AttendanceInputMode.fingerprint;
+    if (activeMode == AttendanceInputMode.fingerprint && !fpEnabled) {
+      activeMode = faceEnabled ? AttendanceInputMode.face : AttendanceInputMode.barcode;
+    } else if (activeMode == AttendanceInputMode.barcode && !bcEnabled) {
+      activeMode = faceEnabled ? AttendanceInputMode.face : AttendanceInputMode.fingerprint;
+    } else if (activeMode == AttendanceInputMode.face && !faceEnabled) {
+      activeMode = fpEnabled ? AttendanceInputMode.fingerprint : AttendanceInputMode.barcode;
     }
 
     return KeyboardListener(
@@ -290,14 +294,22 @@ class _FingerprintScreenState extends State<FingerprintScreen>
               ],
               if (bcEnabled) ...[
                 const Icon(Icons.qr_code_2_rounded, size: 22),
+                const SizedBox(width: 4),
+              ],
+              if (faceEnabled) ...[
+                const Icon(Icons.face_rounded, size: 22),
                 const SizedBox(width: 6),
               ],
               Text(
-                (fpEnabled && bcEnabled)
-                    ? 'تسجيل الحضور بالبصمة الحيوية والباركود'
-                    : (fpEnabled
-                          ? 'تسجيل الحضور بالبصمة الحيوية'
-                          : 'تسجيل الحضور ببطاقة الباركود الذكية'),
+                (fpEnabled && bcEnabled && faceEnabled)
+                    ? 'تسجيل الحضور بالبصمة والباركود والوجه'
+                    : (fpEnabled && bcEnabled)
+                        ? 'تسجيل الحضور بالبصمة الحيوية والباركود'
+                        : (fpEnabled
+                              ? 'تسجيل الحضور بالبصمة الحيوية'
+                              : (faceEnabled
+                                  ? 'تسجيل الحضور بالتعرف على الوجه'
+                                  : 'تسجيل الحضور ببطاقة الباركود الذكية')),
               ),
             ],
           ),
@@ -380,6 +392,50 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+            if (faceEnabled)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Center(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const FaceAttendanceScreen()),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withAlpha(35),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.tealAccent),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.face_rounded,
+                            size: 14,
+                            color: Colors.tealAccent,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'كاميرا الوجه',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -536,8 +592,8 @@ class _FingerprintScreenState extends State<FingerprintScreen>
 
               const SyncStatusCard(compact: true),
 
-              // 2. Attendance Mode Switcher (يظهر فقط في حال تفعيل كلتا الوسيلتين معاً بواسطة الإدارة)
-              if (fpEnabled && bcEnabled)
+              // 2. Attendance Mode Switcher (يظهر في حال تفعيل وسيلتين أو أكثر معاً بواسطة الإدارة)
+              if ((fpEnabled ? 1 : 0) + (bcEnabled ? 1 : 0) + (faceEnabled ? 1 : 0) > 1)
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -548,43 +604,60 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                     builder: (context, constraints) {
                       final segmentedButton =
                           SegmentedButton<AttendanceInputMode>(
-                            segments: const [
-                              ButtonSegment(
+                            segments: [
+                              const ButtonSegment(
                                 value: AttendanceInputMode.dual,
                                 icon: Icon(Icons.hub_rounded, size: 16),
                                 label: Text(
-                                  'المزدوج (بصمة + باركود)',
+                                  'الكل / مزدوج',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
                                 ),
                               ),
-                              ButtonSegment(
-                                value: AttendanceInputMode.fingerprint,
-                                icon: Icon(Icons.fingerprint_rounded, size: 16),
-                                label: Text(
-                                  'بصمة فقط',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                              if (fpEnabled)
+                                const ButtonSegment(
+                                  value: AttendanceInputMode.fingerprint,
+                                  icon: Icon(Icons.fingerprint_rounded, size: 16),
+                                  label: Text(
+                                    'بصمة فقط',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              ButtonSegment(
-                                value: AttendanceInputMode.barcode,
-                                icon: Icon(
-                                  Icons.qr_code_scanner_rounded,
-                                  size: 16,
-                                ),
-                                label: Text(
-                                  'باركود فقط',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
+                              if (bcEnabled)
+                                const ButtonSegment(
+                                  value: AttendanceInputMode.barcode,
+                                  icon: Icon(
+                                    Icons.qr_code_scanner_rounded,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    'باركود فقط',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              ),
+                              if (faceEnabled)
+                                const ButtonSegment(
+                                  value: AttendanceInputMode.face,
+                                  icon: Icon(
+                                    Icons.face_rounded,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    'بصمة وجه',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
                             ],
                             selected: {activeMode},
                             onSelectionChanged: (newSelection) {
@@ -662,6 +735,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                         isDark,
                         fpEnabled,
                         bcEnabled,
+                        faceEnabled,
                         activeMode,
                       ),
                     ),
@@ -681,6 +755,7 @@ class _FingerprintScreenState extends State<FingerprintScreen>
     bool isDark,
     bool fpEnabled,
     bool bcEnabled,
+    bool faceEnabled,
     AttendanceInputMode activeMode,
   ) {
     return Column(
@@ -717,9 +792,16 @@ class _FingerprintScreenState extends State<FingerprintScreen>
             ),
           ),
 
-        // Scanning Zones (يتم إظهار وإخفاء المناطق بحسب تفعيل الإدارة للبصمة والباركود)
-        if (fpEnabled && bcEnabled) ...[
-          if (activeMode == AttendanceInputMode.dual)
+        // Scanning Zones (يتم إظهار وإخفاء المناطق بحسب تفعيل الإدارة للبصمة والباركود وبصمة الوجه)
+        if (activeMode == AttendanceInputMode.face) ...[
+          _buildFaceArea(repo, isDark),
+        ] else if (activeMode == AttendanceInputMode.fingerprint) ...[
+          _buildSensorArea(fpProvider, isDark),
+        ] else if (activeMode == AttendanceInputMode.barcode) ...[
+          _buildBarcodeArea(repo, isDark),
+        ] else ...[
+          // وضع الكل / المزدوج
+          if (fpEnabled && bcEnabled)
             LayoutBuilder(
               builder: (context, constraints) {
                 if (constraints.maxWidth >= 650) {
@@ -751,18 +833,184 @@ class _FingerprintScreenState extends State<FingerprintScreen>
                 }
               },
             )
-          else if (activeMode == AttendanceInputMode.fingerprint)
+          else if (fpEnabled)
             _buildSensorArea(fpProvider, isDark)
-          else
-            _buildBarcodeArea(repo, isDark),
-        ] else if (fpEnabled) ...[
-          _buildSensorArea(fpProvider, isDark),
-        ] else if (bcEnabled) ...[
-          _buildBarcodeArea(repo, isDark),
+          else if (bcEnabled)
+            _buildBarcodeArea(repo, isDark)
+          else if (faceEnabled)
+            _buildFaceArea(repo, isDark),
+
+          // شريط سريع للحضور بالوجه بالكاميرا في حال كان التعرف على الوجه مفعلاً
+          if (faceEnabled && (fpEnabled || bcEnabled)) ...[
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.teal.withAlpha(15),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.teal.withAlpha(50)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withAlpha(25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.face_rounded, color: Colors.teal, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('تسجيل الحضور بالتعرف على الوجه بالكاميرا متاح', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        SizedBox(height: 2),
+                        Text('يمكن للطالب تسجيل حضوره مباشرة عبر الكاميرا التلقائية بدون لمس', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                    label: const Text('تشغيل الكاميرا', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const FaceAttendanceScreen()),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
 
         // Matched Attendance Result Card (Common for Fingerprint & Barcode)
         _buildAttendanceResultCard(isDark),
+      ],
+    );
+  }
+
+  // Face Recognition Area (منطقة التعرف المباشر على الوجه)
+  Widget _buildFaceArea(AppRepository repo, bool isDark) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // Mode indicator pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.teal.withAlpha(20),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.teal.withAlpha(50)),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.face_rounded, size: 16, color: Colors.teal),
+              SizedBox(width: 8),
+              Text(
+                'تسجيل الحضور بالتعرف المباشر على الوجه (الكاميرا)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Face Scanner Circle Card
+        Container(
+          width: 200,
+          height: 200,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.teal, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.teal.withAlpha(30),
+                blurRadius: 20,
+                spreadRadius: 4,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              const Icon(
+                Icons.face_retouching_natural_rounded,
+                size: 90,
+                color: Colors.teal,
+              ),
+              Positioned(
+                bottom: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.darkBlue,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.videocam_rounded, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'كاميرا حية',
+                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'تسجيل الحضور بالتعرف التلقائي على الوجه',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'يقوم النظام بالتعرف التلقائي على وجه الطالب بمجرد وقوفه أمام الكاميرا وتسجيل الحضور فورياً دون الحاجة للمس الأجهزة',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
+        ),
+        const SizedBox(height: 20),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.camera_alt_rounded, size: 20),
+          label: const Text(
+            'فتح شاشة كاميرا التعرف على الوجه المباشرة',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            elevation: 3,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const FaceAttendanceScreen()),
+            );
+          },
+        ),
       ],
     );
   }
