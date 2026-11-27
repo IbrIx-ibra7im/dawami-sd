@@ -7,6 +7,7 @@ import '../../core/utils/pdf_report_helper.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
 import '../face_attendance/widgets/student_face_enrollment_dialog.dart';
+import 'add_edit_student_dialog.dart';
 
 class StudentCardDialog extends StatelessWidget {
   final Student student;
@@ -228,6 +229,92 @@ class StudentCardDialog extends StatelessWidget {
                   }
                 }
               },
+            ),
+            const SizedBox(height: 10),
+
+            // زري التعديل والحذف معاً في مكان واحد
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.edit_rounded, size: 16),
+                    label: const Text('تعديل البيانات', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryBlue,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      showDialog(
+                        context: context,
+                        builder: (_) => AddEditStudentDialog(student: student),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text('حذف الطالب', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 11),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: AppColors.danger),
+                              SizedBox(width: 8),
+                              Text('تأكيد حذف الطالب'),
+                            ],
+                          ),
+                          content: Text(
+                            'هل أنت متأكد من رغبتك في حذف الطالب "${student.fullName}" نهائياً من قاعدة البيانات؟',
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('نعم، تأكيد الحذف', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && context.mounted) {
+                        Navigator.pop(context);
+                        final repo = context.read<AppRepository>();
+                        final target = repo.students.firstWhere(
+                          (s) => s.universityId == student.universityId,
+                          orElse: () => student,
+                        );
+                        if (target.id != null) {
+                          await repo.deleteStudent(target.id!);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('تم حذف الطالب "${student.fullName}" بنجاح'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                  ),
+                ),
+              ],
             ),
           ],
         ),

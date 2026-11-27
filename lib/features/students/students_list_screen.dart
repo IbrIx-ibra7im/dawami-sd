@@ -190,6 +190,30 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                       });
                     },
                   ),
+                  if (_selectedStudentIds.length == 1) ...[
+                    const SizedBox(width: 6),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text(
+                        'تعديل الطالب المحدد',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        final selectedId = _selectedStudentIds.first;
+                        final student = students.firstWhere((s) => s.id == selectedId);
+                        showDialog(
+                          context: context,
+                          builder: (_) => AddEditStudentDialog(student: student),
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(width: 6),
                   ElevatedButton.icon(
                     icon: const Icon(Icons.delete_forever_rounded, size: 16),

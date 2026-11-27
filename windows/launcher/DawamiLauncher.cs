@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -21,15 +22,20 @@ class Program
     private static HttpListener listener;
     private static string webRoot;
     private static bool isRunning = true;
+    private static NotifyIcon trayIcon;
+    private static string appUrl;
+    private static DateTime startTime;
 
     [STAThread]
     static void Main(string[] args)
     {
         try
         {
-            // Determine directory where Dawami.exe is running
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+
             string appDir = AppDomain.CurrentDomain.BaseDirectory;
-            
+
             // Search for web files
             string[] candidatePaths = new string[]
             {
@@ -51,27 +57,104 @@ class Program
             if (string.IsNullOrEmpty(webRoot))
             {
                 MessageBox.Show(
-                    "لم يتم العثور على ملفات واجهة النظام (web/index.html).\nيرجى التأكد من اكتمال مجلد التطبيق.",
+                    "لم يتم العثور على ملفات واجهة النظام (data/web/index.html).\nيرجى التأكد من اكتمال مجلد التطبيق.",
                     "دوامي - خطأ في التشغيل",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);
                 return;
             }
 
-            // Find an open port
-            int port = GetAvailablePort();
-            string url = string.Format("http://127.0.0.1:{0}/", port);
+            // Find an open port, preference for 60507
+            int port = GetPreferredPort(60507);
+            appUrl = string.Format("http://127.0.0.1:{0}/", port);
 
             // Start embedded local HTTP server
             listener = new HttpListener();
-            listener.Prefixes.Add(url);
+            listener.Prefixes.Add(appUrl);
+            try
+            {
+                listener.Prefixes.Add(string.Format("http://localhost:{0}/", port));
+            }
+            catch { }
             listener.Start();
 
             Thread serverThread = new Thread(ListenLoop);
             serverThread.IsBackground = true;
             serverThread.Start();
 
-            // Find Microsoft Edge or Google Chrome executable
+            // Setup System Tray Icon so application never dies prematurely
+            SetupTrayIcon(appDir);
+
+            // Launch Browser Window
+            startTime = DateTime.Now;
+            LaunchBrowser(appUrl);
+
+            // Run Windows Message Loop
+            Application.Run();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                "حدث خطأ أثناء تشغيل دوامي: " + ex.Message,
+                "دوامي",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+        finally
+        {
+            isRunning = false;
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+                trayIcon.Dispose();
+            }
+            try { if (listener != null) listener.Stop(); } catch { }
+        }
+    }
+
+    private static void SetupTrayIcon(string appDir)
+    {
+        trayIcon = new NotifyIcon();
+        trayIcon.Text = "دوامي - نظام الحضور والغياب الذكي (قيد التشغيل)";
+
+        try
+        {
+            string iconPath = Path.Combine(appDir, "app_icon.ico");
+            if (File.Exists(iconPath))
+            {
+                trayIcon.Icon = new Icon(iconPath);
+            }
+            else
+            {
+                trayIcon.Icon = SystemIcons.Application;
+            }
+        }
+        catch
+        {
+            trayIcon.Icon = SystemIcons.Application;
+        }
+
+        ContextMenu menu = new ContextMenu();
+        menu.MenuItems.Add(new MenuItem("فتح نظام دوامي", (s, e) => LaunchBrowser(appUrl)));
+        menu.MenuItems.Add(new MenuItem("إعادة فتح النافذة", (s, e) => LaunchBrowser(appUrl)));
+        menu.MenuItems.Add(new MenuItem("-"));
+        menu.MenuItems.Add(new MenuItem("خروج وإغلاق دوامي نهائياً", (s, e) =>
+        {
+            isRunning = false;
+            try { listener.Stop(); } catch { }
+            trayIcon.Visible = false;
+            Application.Exit();
+        }));
+
+        trayIcon.ContextMenu = menu;
+        trayIcon.DoubleClick += (s, e) => LaunchBrowser(appUrl);
+        trayIcon.Visible = true;
+    }
+
+    private static void LaunchBrowser(string url)
+    {
+        try
+        {
             string browserPath = GetBrowserExecutablePath();
             string profileDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -95,32 +178,47 @@ class Program
                 psi.UseShellExecute = true;
             }
 
-            Process browserProcess = Process.Start(psi);
-            if (browserProcess != null)
+            Process p = Process.Start(psi);
+            if (p != null)
             {
-                browserProcess.WaitForExit();
+                try
+                {
+                    p.EnableRaisingEvents = true;
+                    p.Exited += (s, e) =>
+                    {
+                        // If browser exited after running for more than 5 seconds, user closed window
+                        if ((DateTime.Now - startTime).TotalSeconds > 5)
+                        {
+                            // Keep tray icon active for 3 seconds before auto-closing, or stay in tray
+                        }
+                    };
+                }
+                catch { }
             }
-
-            isRunning = false;
-            try { listener.Stop(); } catch { }
         }
         catch (Exception ex)
         {
-            MessageBox.Show(
-                "حدث خطأ أثناء تشغيل دوامي: " + ex.Message,
-                "دوامي",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            try { Process.Start(url); } catch { }
         }
     }
 
-    private static int GetAvailablePort()
+    private static int GetPreferredPort(int preferred)
     {
-        TcpListener l = new TcpListener(IPAddress.Loopback, 0);
-        l.Start();
-        int port = ((IPEndPoint)l.LocalEndpoint).Port;
-        l.Stop();
-        return port;
+        try
+        {
+            TcpListener test = new TcpListener(IPAddress.Loopback, preferred);
+            test.Start();
+            test.Stop();
+            return preferred;
+        }
+        catch
+        {
+            TcpListener l = new TcpListener(IPAddress.Loopback, 0);
+            l.Start();
+            int port = ((IPEndPoint)l.LocalEndpoint).Port;
+            l.Stop();
+            return port;
+        }
     }
 
     private static string GetBrowserExecutablePath()
@@ -188,6 +286,9 @@ class Program
             context.Response.ContentType = contentType;
             context.Response.ContentLength64 = bytes.Length;
             context.Response.AddHeader("Cache-Control", "no-cache");
+            context.Response.AddHeader("Access-Control-Allow-Origin", "*");
+            context.Response.AddHeader("Cross-Origin-Opener-Policy", "same-origin");
+            context.Response.AddHeader("Cross-Origin-Embedder-Policy", "credentialless");
             context.Response.OutputStream.Write(bytes, 0, bytes.Length);
             context.Response.OutputStream.Close();
         }
