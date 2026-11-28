@@ -9,6 +9,16 @@
 
 ---
 
+## 📥 تحميل وتشغيل التطبيق المكتبي (Windows Desktop)
+
+يمكنك تحميل النسخة الرسمية الجاهزة للتشغيل المباشر لنظام ويندوز (Windows 10 / Windows 11) دون الحاجة إلى تثبيت أي برامج مسبقة:
+
+- 🚀 **[تحميل النسخة المحمولة المباشرة (Portable Zip - 14.7 MB)](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami_v1.1.0_Windows_Portable.zip)** — فك الضغط وشغّل ملف `Dawami.exe` فوراً دون إنترنت.
+- 📦 **[تحميل مثبت ويندوز الرسمي (Setup Installer)](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami_Setup_v1.1.0.exe)** — تثبيت قياسي مع إنشاء أيقونة على سطح المكتب وقائمة Start.
+- 📁 **[استعراض مجلد ملفات الإطلاق (dist/)](file:///d:/ibrahim/project/dow_/my_app/dist)** — يحتوي على مخرجات النظام الجاهزة.
+
+---
+
 ## 🌟 أبرز مميزات النظام
 
 ### 1. 🖐️ تسجيل الحضور بالبصمة الحيوية (Biometrics)
