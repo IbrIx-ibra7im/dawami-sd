@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/face_recognition_service.dart';
+import '../../core/utils/student_image_helper.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
 import 'widgets/face_attendance_settings_dialog.dart';
@@ -94,12 +95,12 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen>
       // تحديد مواضع الوجوه المكتشفة في الإطار هندسياً في المنتصف
       final List<Rect> faceRects = [];
       if (_faceService.settings.multiFaceEnabled && studentsWithFace.length >= 2) {
-        // اكتشاف وجهين متزامنين متوازنين في النصفين الأيمن والأيسر
-        faceRects.add(const Rect.fromLTWH(0.08, 0.18, 0.40, 0.58));
-        faceRects.add(const Rect.fromLTWH(0.52, 0.18, 0.40, 0.58));
+        // اكتشاف وجهين متزامنين متوازنين عند تفعيل تعدد الوجوه
+        faceRects.add(const Rect.fromLTWH(0.12, 0.16, 0.36, 0.60));
+        faceRects.add(const Rect.fromLTWH(0.52, 0.16, 0.36, 0.60));
       } else {
         // وجه واحد رئيسي في منتصف الكاميرا تماماً وبأبعاد متناسقة
-        faceRects.add(const Rect.fromLTWH(0.26, 0.16, 0.48, 0.60));
+        faceRects.add(const Rect.fromLTWH(0.24, 0.14, 0.52, 0.64));
       }
 
       // استدعاء خدمة التعرف ومقارنة الـ Embeddings وفحص الحيوية
@@ -561,7 +562,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen>
                               radius: 24,
                               backgroundColor: AppColors.primaryBlue.withAlpha(30),
                               backgroundImage: (student.photoUrl != null && student.photoUrl!.isNotEmpty)
-                                  ? NetworkImage(student.photoUrl!)
+                                  ? StudentImageHelper.getImageProvider(student.photoUrl!)
                                   : null,
                               child: (student.photoUrl == null || student.photoUrl!.isEmpty)
                                   ? Text(
@@ -680,9 +681,9 @@ class _MultiFaceBoxPainter extends CustomPainter {
       Rect targetRect;
       if (recognizedFaces.length == 1) {
         // وجه واحد: وضعه في منتصف الشاشة بدقة مع مراعاة حجم الشاشة
-        final center = Offset(size.width * 0.5, size.height * 0.45);
-        final boxW = math.min(size.width * 0.52, 290.0).clamp(210.0, 350.0);
-        final boxH = math.min(size.height * 0.62, 370.0).clamp(270.0, 430.0);
+        final center = Offset(size.width * 0.5, size.height * 0.44);
+        final boxW = math.min(size.width * 0.50, 310.0).clamp(220.0, 360.0);
+        final boxH = math.min(size.height * 0.64, 400.0).clamp(280.0, 450.0);
         targetRect = Rect.fromCenter(center: center, width: boxW, height: boxH);
       } else {
         // وجوه متعددة: حساب الإحداثيات بالنسبة لحجم الشاشة

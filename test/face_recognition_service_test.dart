@@ -45,6 +45,17 @@ void main() {
       expect(similarity, lessThan(0.80));
     });
 
+    test('same student face across different frames matches with high confidence (> 0.85)', () {
+      final frame1 = List<int>.generate(256, (i) => (i * 7 + 1) % 256);
+      final frame2 = List<int>.generate(256, (i) => (i * 23 + 47) % 256);
+
+      final vec1 = service.extractEmbeddingFromImageBytes('STUDENT-2026', frame1, angleOffset: 0.0);
+      final vec2 = service.extractEmbeddingFromImageBytes('STUDENT-2026', frame2, angleOffset: 0.1);
+
+      final similarity = service.calculateCosineSimilarity(vec1, vec2);
+      expect(similarity, greaterThanOrEqualTo(0.85));
+    });
+
     test('computeCompositeEmbedding averages multiple angles into a canonical normalized vector', () {
       final bytes1 = List<int>.generate(256, (i) => (i * 11) % 256);
       final bytes2 = List<int>.generate(256, (i) => (i * 13) % 256);

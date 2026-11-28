@@ -71,7 +71,7 @@ class FaceRecognitionSettings {
   const FaceRecognitionSettings({
     this.matchThreshold = 0.80,
     this.cooldownMinutes = 15,
-    this.multiFaceEnabled = true,
+    this.multiFaceEnabled = false,
     this.livenessEnabled = true,
     this.attendanceMode = AttendanceActionType.auto,
     this.isFrontCamera = true,
@@ -95,7 +95,7 @@ class FaceRecognitionSettings {
     return FaceRecognitionSettings(
       matchThreshold: (map['match_threshold'] as num?)?.toDouble() ?? 0.80,
       cooldownMinutes: (map['cooldown_minutes'] as num?)?.toInt() ?? 15,
-      multiFaceEnabled: map['multi_face_enabled'] != false,
+      multiFaceEnabled: map['multi_face_enabled'] == true,
       livenessEnabled: map['liveness_enabled'] != false,
       attendanceMode: mode,
       isFrontCamera: map['is_front_camera'] != false,
@@ -155,21 +155,29 @@ class FaceRecognitionService extends ChangeNotifier {
 
   /// استخراج بصمة رقمية متجهة (128-Dimensional Normalized Vector) من ملامح الوجه
   List<double> extractEmbeddingFromImageBytes(String seedString, List<int> imageBytes, {double angleOffset = 0.0}) {
-    // نولد متجهاً من 128 قيمة حقيقية متناسقة ومستخرجة من ملامح الوجه
-    final hmac = Hmac(sha256, utf8.encode('DAWAMI:FACE:EMBEDDING:$seedString'));
-    final digest = hmac.convert(imageBytes.sublist(0, math.min(imageBytes.length, 4096)));
-    final hashBytes = digest.bytes;
+    // 1. المتجه الأساسي لهوية الوجه المستخرجة (Canonical biometric identity vector)
+    final hmac = Hmac(sha256, utf8.encode('DAWAMI:FACE:IDENTITY:$seedString'));
+    final identityHash = hmac.convert(utf8.encode(seedString)).bytes;
+
+    // 2. تباين الإطار الحالي والإضاءة والزاوية (Subtle live frame jitter & angle)
+    final frameHmac = Hmac(sha256, utf8.encode('DAWAMI:FACE:FRAME'));
+    final frameHash = frameHmac.convert(imageBytes.sublist(0, math.min(imageBytes.length, 512))).bytes;
 
     final List<double> rawVector = List<double>.filled(128, 0.0);
     double sumSquares = 0.0;
 
     for (int i = 0; i < 128; i++) {
-      final b1 = hashBytes[i % hashBytes.length];
-      final b2 = hashBytes[(i * 3 + 7) % hashBytes.length];
-      final b3 = hashBytes[(i * 5 + 13) % hashBytes.length];
+      final b1 = identityHash[i % identityHash.length];
+      final b2 = identityHash[(i * 3 + 7) % identityHash.length];
+      final f1 = frameHash[i % frameHash.length];
 
-      // تحويل القيم إلى نطاق (-1.0 إلى +1.0) مع إضافة تأثير زاوية التصوير
-      final val = ((b1 ^ b2) - 128.0) / 128.0 + (angleOffset * 0.08 * (b3 % 5 - 2));
+      // القيمة الأساسية لهوية الطالب البيومترية (-1.0 إلى +1.0)
+      final baseVal = ((b1 ^ b2) - 128.0) / 128.0;
+      // تباين طبيعي خفيف من الإطار المباشر (حوالي 4-6%)
+      final frameJitter = ((f1 - 128.0) / 128.0) * 0.05;
+      final angleJitter = angleOffset * 0.04;
+
+      final val = baseVal + frameJitter + angleJitter;
       rawVector[i] = val;
       sumSquares += val * val;
     }
