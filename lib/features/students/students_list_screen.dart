@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/permissions/role_manager.dart';
 import '../../core/utils/csv_report_helper.dart';
 import '../../core/utils/file_saver/file_saver.dart';
+import '../../core/utils/student_image_helper.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
@@ -561,10 +562,9 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                                   CircleAvatar(
                                     radius: 14,
                                     backgroundColor: AppColors.primaryBlue.withAlpha(25),
-                                    backgroundImage: NetworkImage(
-                                      (s.photoUrl != null && s.photoUrl!.isNotEmpty)
-                                          ? s.photoUrl!
-                                          : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(s.fullName)}&background=0D8ABC&color=fff&size=256',
+                                    backgroundImage: StudentImageHelper.getImageProvider(
+                                      s.photoUrl,
+                                      studentName: s.fullName,
                                     ),
                                   ),
                                   if (s.faceRegistered)
@@ -797,10 +797,9 @@ class _StudentsListScreenState extends State<StudentsListScreen> {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: AppColors.primaryBlue.withAlpha(25),
-                        backgroundImage: NetworkImage(
-                          (student.photoUrl != null && student.photoUrl!.isNotEmpty)
-                              ? student.photoUrl!
-                              : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(student.fullName)}&background=0D8ABC&color=fff&size=256',
+                        backgroundImage: StudentImageHelper.getImageProvider(
+                          student.photoUrl,
+                          studentName: student.fullName,
                         ),
                       ),
                       if (student.faceRegistered)

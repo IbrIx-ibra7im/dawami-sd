@@ -515,7 +515,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'التحقق المباشر من التحديثات والإصدارات الجديدة المنشورة على مستودع GitHub الرسمي مع إمكانية تنزيل وتثبيت أحدث حزمة APK مباشرة.',
+                    'التحقق المباشر من التحديثات والإصدارات الجديدة المنشورة على مستودع GitHub الرسمي مع إمكانية تنزيل وتثبيت أحدث حزمة لتطبيق سطح المكتب لويندوز (.exe) مباشرة.',
                     style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
                   ),
                   const SizedBox(height: 14),

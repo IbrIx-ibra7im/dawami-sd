@@ -1,21 +1,15 @@
-import 'package:flutter/foundation.dart';
-
-/// نموذج معلومات إصدار وتحديث تطبيق دوامي من مستودع GitHub Releases
+/// نموذج معلومات إصدار وتحديث تطبيق دوامي لسطح المكتب (Windows Desktop) من مستودع GitHub Releases
 class AppReleaseInfo {
   final String tagName; // رقم الإصدار من GitHub (مثال: v1.1.0 أو 1.1.0)
   final String cleanVersion; // رقم الإصدار بعد إزالة v والرموز (مثال: 1.1.0)
   final String name; // عنوان الإصدار
   final String body; // تفاصيل وملاحظات التحديث (Release Notes / Changelog)
   final String htmlUrl; // رابط صفحة الإصدار على GitHub
-  final String? apkDownloadUrl; // رابط تنزيل ملف APK المباشر من المرفقات (إن وجد)
-  final String? apkFileName; // اسم ملف الـ APK
-  final int? apkSize; // حجم ملف الـ APK بالبايت
-  final String? exeDownloadUrl; // رابط تنزيل مثبت ويندوز EXE المباشر من المرفقات (إن وجد)
-  final String? exeFileName; // اسم ملف الـ EXE
-  final int? exeSize; // حجم ملف الـ EXE بالبايت
+  final String? exeDownloadUrl; // رابط تنزيل تطبيق سطح المكتب المباشر (EXE / Installer / Zip)
+  final String? exeFileName; // اسم ملف تطبيق سطح المكتب
+  final int? exeSize; // حجم ملف التطبيق بالبايت
   final String? publishedAt; // تاريخ وتوقيت النشر
-  final bool hasApk; // هل يتوفر ملف APK قابل للتنزيل
-  final bool hasExe; // هل يتوفر ملف EXE مثبت ويندوز
+  final bool hasExe; // هل يتوفر تطبيق سطح المكتب قابل للتنزيل المباشر
 
   const AppReleaseInfo({
     required this.tagName,
@@ -23,28 +17,17 @@ class AppReleaseInfo {
     required this.name,
     required this.body,
     required this.htmlUrl,
-    this.apkDownloadUrl,
-    this.apkFileName,
-    this.apkSize,
     this.exeDownloadUrl,
     this.exeFileName,
     this.exeSize,
     this.publishedAt,
-    this.hasApk = false,
     this.hasExe = false,
   });
 
-  /// مسميات بديلة ومتوافقة مع المتطلبات
+  /// مسميات بديلة ومتوافقة مع النظام
   String get version => cleanVersion;
   String get changelog => body;
-  bool get hasDirectApk => hasApk;
   bool get hasDirectExe => hasExe;
-
-  String get apkSizeFormatted {
-    if (apkSize == null || apkSize == 0) return '';
-    final mb = apkSize! / (1024 * 1024);
-    return '${mb.toStringAsFixed(1)} ميجابايت';
-  }
 
   String get exeSizeFormatted {
     if (exeSize == null || exeSize == 0) return '';
@@ -52,18 +35,11 @@ class AppReleaseInfo {
     return '${mb.toStringAsFixed(1)} ميجابايت';
   }
 
-  /// الرابط المباشر لأول ملف تنفيذي مرفوع (.apk أو .exe) بحسب بيئة التشغيل، وفي حال عدم توفره يتم الاعتماد على رابط htmlUrl كبديل
+  /// الرابط المباشر لتنزيل تطبيق سطح المكتب لويندوز (.exe / installer)، وفي حال عدم توفره يتم الانتقال لصفحة الإصدار
   String get downloadUrl {
-    if (!kIsWeb) {
-      if (defaultTargetPlatform == TargetPlatform.windows && exeDownloadUrl != null && exeDownloadUrl!.isNotEmpty) {
-        return exeDownloadUrl!;
-      }
-      if (defaultTargetPlatform == TargetPlatform.android && apkDownloadUrl != null && apkDownloadUrl!.isNotEmpty) {
-        return apkDownloadUrl!;
-      }
+    if (exeDownloadUrl != null && exeDownloadUrl!.isNotEmpty) {
+      return exeDownloadUrl!;
     }
-    if (apkDownloadUrl != null && apkDownloadUrl!.isNotEmpty) return apkDownloadUrl!;
-    if (exeDownloadUrl != null && exeDownloadUrl!.isNotEmpty) return exeDownloadUrl!;
     return htmlUrl.isNotEmpty
         ? htmlUrl
         : 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/$tagName';
@@ -73,10 +49,7 @@ class AppReleaseInfo {
     final rawTag = json['tag_name']?.toString() ?? 'v1.1.0';
     final clean = rawTag.replaceAll(RegExp(r'^[vV]'), '').trim();
 
-    // استخراج روابط واسماء وأحجام ملفات التحديث (APK و EXE) من مرفقات الإصدار
-    String? apkUrl;
-    String? apkName;
-    int? apkSize;
+    // استخراج رابط واسم وحجم تطبيق سطح المكتب لويندوز (.exe أو .msi أو .zip) من مرفقات الإصدار
     String? exeUrl;
     String? exeName;
     int? exeSize;
@@ -86,11 +59,14 @@ class AppReleaseInfo {
       for (final asset in assets) {
         final name = asset['name']?.toString() ?? '';
         final lower = name.toLowerCase();
-        if (lower.endsWith('.apk')) {
-          apkUrl = asset['browser_download_url']?.toString();
-          apkName = name;
-          apkSize = asset['size'] is int ? asset['size'] as int : int.tryParse(asset['size']?.toString() ?? '');
-        } else if (lower.endsWith('.exe')) {
+
+        // إعطاء الأولوية لملفات مثبت ويندوز (.exe أو .msi) أو الحزم المضغوطة (.zip)
+        if (lower.endsWith('.exe') || lower.endsWith('.msi')) {
+          exeUrl = asset['browser_download_url']?.toString();
+          exeName = name;
+          exeSize = asset['size'] is int ? asset['size'] as int : int.tryParse(asset['size']?.toString() ?? '');
+          break; // تم العثور على التطبيق التنفيذي المباشر
+        } else if (lower.endsWith('.zip') && exeUrl == null) {
           exeUrl = asset['browser_download_url']?.toString();
           exeName = name;
           exeSize = asset['size'] is int ? asset['size'] as int : int.tryParse(asset['size']?.toString() ?? '');
@@ -105,16 +81,12 @@ class AppReleaseInfo {
       tagName: rawTag,
       cleanVersion: clean,
       name: json['name']?.toString() ?? 'تحديث جديد',
-      body: json['body']?.toString() ?? 'يتضمن هذا الإصدار تحسينات وإصلاحات جديدة لزيادة استقرار وسرعة النظام.',
+      body: json['body']?.toString() ?? 'يتضمن هذا الإصدار تحسينات وإصلاحات جديدة لزيادة استقرار وسرعة تطبيق سطح المكتب.',
       htmlUrl: releaseHtmlUrl,
-      apkDownloadUrl: apkUrl,
-      apkFileName: apkName,
-      apkSize: apkSize,
       exeDownloadUrl: exeUrl,
       exeFileName: exeName,
       exeSize: exeSize,
       publishedAt: json['published_at']?.toString(),
-      hasApk: apkUrl != null && apkUrl.isNotEmpty,
       hasExe: exeUrl != null && exeUrl.isNotEmpty,
     );
   }

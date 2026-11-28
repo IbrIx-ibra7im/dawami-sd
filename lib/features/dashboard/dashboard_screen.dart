@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/permissions/role_manager.dart';
+import '../../core/utils/student_image_helper.dart';
 import '../../data/repositories/app_repository.dart';
 import '../../widgets/custom_widgets.dart';
 
@@ -801,11 +802,12 @@ class DashboardScreen extends StatelessWidget {
                                         color: AppColors.primaryBlue.withAlpha(20),
                                         shape: BoxShape.circle,
                                         border: Border.all(color: AppColors.primaryBlue, width: 2),
-                                        image: DecorationImage(
-                                          image: NetworkImage(photo),
-                                          fit: BoxFit.cover,
-                                          onError: (err, stack) {},
-                                        ),
+                                        image: StudentImageHelper.getImageProvider(photo, studentName: studentName) != null
+                                            ? DecorationImage(
+                                                image: StudentImageHelper.getImageProvider(photo, studentName: studentName)!,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : null,
                                       ),
                                     ),
                                     Positioned(

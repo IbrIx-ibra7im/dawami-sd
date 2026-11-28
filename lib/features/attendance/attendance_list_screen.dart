@@ -4,6 +4,7 @@ import '../../core/constants/api_constants.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/permissions/role_manager.dart';
 import '../../core/utils/date_helper.dart';
+import '../../core/utils/student_image_helper.dart';
 import '../../data/models/attendance_record.dart';
 import '../../data/models/student.dart';
 import '../../data/remote/supabase_service.dart';
@@ -405,10 +406,11 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                                   CircleAvatar(
                                     radius: 15,
                                     backgroundColor: AppColors.primaryBlue.withAlpha(25),
-                                    backgroundImage: NetworkImage(
+                                    backgroundImage: StudentImageHelper.getImageProvider(
                                       (repo.students.any((s) => (s.id == r.studentId || s.universityId == r.universityId) && s.photoUrl != null && s.photoUrl!.isNotEmpty))
                                           ? repo.students.firstWhere((s) => (s.id == r.studentId || s.universityId == r.universityId)).photoUrl!
-                                          : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(r.studentName ?? "طالب")}&background=0D8ABC&color=fff&size=256',
+                                          : null,
+                                      studentName: r.studentName ?? 'طالب',
                                     ),
                                   ),
                                   const Positioned(
@@ -572,10 +574,11 @@ class _AttendanceListScreenState extends State<AttendanceListScreen> {
                         CircleAvatar(
                           radius: 20,
                           backgroundColor: AppColors.primaryBlue.withAlpha(25),
-                          backgroundImage: NetworkImage(
+                          backgroundImage: StudentImageHelper.getImageProvider(
                             (repo.students.any((s) => (s.id == record.studentId || s.universityId == record.universityId) && s.photoUrl != null && s.photoUrl!.isNotEmpty))
                                 ? repo.students.firstWhere((s) => (s.id == record.studentId || s.universityId == record.universityId)).photoUrl!
-                                : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(record.studentName ?? "طالب")}&background=0D8ABC&color=fff&size=256',
+                                : null,
+                            studentName: record.studentName ?? 'طالب',
                           ),
                         ),
                         const Positioned(

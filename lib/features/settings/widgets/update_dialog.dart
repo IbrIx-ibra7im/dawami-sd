@@ -243,55 +243,28 @@ class UpdateDialog extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // إشارات الحزم التنفيذية المتوفرة
-                  if (releaseInfo.hasExe || releaseInfo.hasApk)
+                  // إشارة توفر تطبيق سطح المكتب لويندوز
+                  if (releaseInfo.hasExe)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          if (releaseInfo.hasExe)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryBlue.withAlpha(20),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.primaryBlue.withAlpha(80)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.desktop_windows_rounded, size: 14, color: AppColors.primaryBlue),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    'مثبت ويندوز (.exe): ${releaseInfo.exeSizeFormatted.isNotEmpty ? releaseInfo.exeSizeFormatted : "متوفر"}',
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
-                                  ),
-                                ],
-                              ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryBlue.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.primaryBlue.withAlpha(80)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.desktop_windows_rounded, size: 15, color: AppColors.primaryBlue),
+                            const SizedBox(width: 6),
+                            Text(
+                              'تطبيق سطح المكتب لويندوز (.exe): ${releaseInfo.exeSizeFormatted.isNotEmpty ? releaseInfo.exeSizeFormatted : "متوفر للتنزيل المباشر"}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryBlue),
                             ),
-                          if (releaseInfo.hasApk)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppColors.success.withAlpha(20),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.success.withAlpha(80)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.android_rounded, size: 14, color: AppColors.success),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    'تطبيق أندرويد (.apk): ${releaseInfo.apkSizeFormatted.isNotEmpty ? releaseInfo.apkSizeFormatted : "متوفر"}',
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.success),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                 ],

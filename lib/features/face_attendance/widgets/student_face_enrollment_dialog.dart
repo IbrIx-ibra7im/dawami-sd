@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/face_recognition_service.dart';
+import '../../../core/utils/student_image_helper.dart';
 import '../../../data/models/face_profile.dart';
 import '../../../data/models/student.dart';
 
@@ -92,7 +93,10 @@ class _StudentFaceEnrollmentDialogState extends State<StudentFaceEnrollmentDialo
         // تم التقاط الـ 3 زوايا -> نقوم بحفظ الملف البيومتري المركب وتوليد صورة مرجعية
         final defaultPhoto = (widget.student.photoUrl != null && widget.student.photoUrl!.isNotEmpty)
             ? widget.student.photoUrl!
-            : 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(widget.student.fullName.isNotEmpty ? widget.student.fullName : "Student")}&background=008080&color=fff&size=256';
+            : StudentImageHelper.generateCapturedPhotoDataUrl(
+                studentName: widget.student.fullName,
+                studentId: widget.student.universityId,
+              );
 
         final profile = await FaceRecognitionService.instance.enrollStudentMultiAngle(
           student: widget.student,

@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/face_recognition_service.dart';
+import '../../core/utils/student_image_helper.dart';
 import '../../data/local/hive_helper.dart';
 import '../../data/models/academic_models.dart';
 import '../../data/models/face_profile.dart';
@@ -10,6 +13,7 @@ import '../../data/remote/supabase_service.dart';
 import '../../data/repositories/app_repository.dart';
 import '../fingerprint/fingerprint_enrollment_dialog.dart';
 import '../face_attendance/widgets/student_face_enrollment_dialog.dart';
+import 'widgets/camera_photo_capture_dialog.dart';
 
 class AddEditStudentDialog extends StatefulWidget {
   final Student? student;
@@ -753,7 +757,11 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                                 _faceEnrolledLocally = true;
                                 _enrolledFaceEmbedding = result.faceEmbeddingHash;
                                 if (_photoController.text.trim().isEmpty) {
-                                  _photoController.text = result.referencePhotoUrl ?? 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=008080&color=fff&size=256';
+                                  _photoController.text = result.referencePhotoUrl ??
+                                      StudentImageHelper.generateCapturedPhotoDataUrl(
+                                        studentName: name,
+                                        studentId: uniId,
+                                      );
                                 }
                               });
                             }
@@ -764,51 +772,103 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                // معاينة والتقاط صورة الطالب (Photo Preview & Quick Generator)
+                // معاينة والتقاط صورة الطالب بالكاميرا أو الجهاز (Photo Preview & Live Capture)
                 Row(
                   children: [
+                    // مربع المعاينة الفورية للصورة
                     Container(
-                      width: 50,
-                      height: 50,
+                      width: 54,
+                      height: 54,
                       decoration: BoxDecoration(
                         color: AppColors.primaryBlue.withAlpha(15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primaryBlue.withAlpha(40)),
-                        image: _photoController.text.trim().isNotEmpty
-                            ? DecorationImage(
-                                image: NetworkImage(_photoController.text.trim()),
-                                fit: BoxFit.cover,
-                                onError: (err, stack) {},
-                              )
-                            : null,
+                        border: Border.all(
+                          color: _photoController.text.trim().isNotEmpty
+                              ? AppColors.success
+                              : AppColors.primaryBlue.withAlpha(40),
+                          width: 1.8,
+                        ),
                       ),
-                      child: _photoController.text.trim().isEmpty
-                          ? const Icon(Icons.person_outline_rounded, color: AppColors.primaryBlue, size: 26)
-                          : null,
+                      clipBehavior: Clip.antiAlias,
+                      child: StudentImageHelper.buildPhotoWidget(
+                        _photoController.text.trim(),
+                        studentName: _nameController.text.trim(),
+                        width: 54,
+                        height: 54,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextFormField(
                         controller: _photoController,
                         onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'رابط صورة الطالب (اختياري)',
-                          prefixIcon: Icon(Icons.photo_camera_outlined),
-                          hintText: 'https://...',
+                        decoration: InputDecoration(
+                          labelText: 'صورة الطالب (ملتقطة بالكاميرا أو رابط)',
+                          prefixIcon: const Icon(Icons.photo_camera_outlined),
+                          hintText: _photoController.text.trim().isNotEmpty ? 'تم حفظ بيانات الصورة بنجاح' : 'التقط بالكاميرا أو اختر صورة',
+                          suffixIcon: _photoController.text.trim().isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded, size: 18),
+                                  tooltip: 'مسح الصورة',
+                                  onPressed: () => setState(() => _photoController.clear()),
+                                )
+                              : null,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
+                    // زر التقاط الصورة بالكاميرا المباشرة
                     Tooltip(
-                      message: 'توليد صورة الهوية الشخصية',
-                      child: IconButton.filledTonal(
-                        icon: const Icon(Icons.add_a_photo_outlined),
-                        onPressed: () {
+                      message: 'التقاط صورة حقيقية بالكاميرا',
+                      child: IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: AppColors.primaryBlue),
+                        icon: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                        onPressed: () async {
                           final name = _nameController.text.trim();
-                          final effectiveName = name.isNotEmpty ? name : 'Student';
-                          setState(() {
-                            _photoController.text = 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(effectiveName)}&background=0D8ABC&color=fff&size=256';
-                          });
+                          final uniId = _idController.text.trim();
+                          final captured = await CameraPhotoCaptureDialog.show(
+                            context,
+                            studentName: name.isNotEmpty ? name : 'طالب جديد',
+                            studentId: uniId.isNotEmpty ? uniId : '0000',
+                          );
+                          if (captured != null && mounted) {
+                            setState(() {
+                              _photoController.text = captured;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    // زر اختيار صورة موجودة من ملفات الكمبيوتر
+                    Tooltip(
+                      message: 'اختيار صورة من جهاز الكمبيوتر',
+                      child: IconButton.outlined(
+                        icon: const Icon(Icons.file_upload_outlined, size: 20),
+                        onPressed: () async {
+                          try {
+                            final files = await FilePicker.pickFiles(
+                              type: FileType.image,
+                            );
+                            if (files.isNotEmpty) {
+                              final file = files.first;
+                              final bytes = await file.readAsBytes();
+                              if (bytes.isNotEmpty) {
+                                final ext = file.extension?.toLowerCase() ?? 'jpeg';
+                                final mime = (ext == 'png') ? 'image/png' : 'image/jpeg';
+                                final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+                                setState(() {
+                                  _photoController.text = dataUrl;
+                                });
+                              }
+                            }
+                          } catch (e) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('تعذر تحميل الصورة: $e')),
+                            );
+                          }
                         },
                       ),
                     ),

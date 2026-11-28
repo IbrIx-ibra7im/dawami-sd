@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/student_image_helper.dart';
 
 /// نافذة منبثقة تفاعلية لعرض صورة الطالب بحجم كبير وفحص صحتها وحيويتها (Liveness & Authenticity Verification)
 class PhotoVerificationDialog extends StatefulWidget {
@@ -246,11 +247,12 @@ class _PhotoVerificationDialogState extends State<PhotoVerificationDialog>
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            // Main Image
-                            Image.network(
+                            // Main Image safely rendered with Data URL, Base64 & Network support
+                            StudentImageHelper.buildPhotoWidget(
                               widget.photoUrl,
+                              studentName: widget.studentName,
                               fit: BoxFit.cover,
-                              errorBuilder: (ctx, err, stack) => Center(
+                              errorWidget: Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [

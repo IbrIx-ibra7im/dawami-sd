@@ -32,70 +32,63 @@ void main() {
     });
   });
 
-  group('AppReleaseInfo Model Tests', () {
-    test('Parses GitHub Release JSON with APK asset', () {
+  group('AppReleaseInfo Model Tests (Windows Desktop Updates)', () {
+    test('Parses GitHub Release JSON with Windows EXE installer asset', () {
       final json = {
-        'tag_name': 'v1.2.0',
-        'name': 'Dawami Release 1.2.0',
-        'body': 'Features:\n- Added barcode camera scanner\n- Improved UI',
-        'html_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.2.0',
-        'published_at': '2026-11-21T12:00:00Z',
+        'tag_name': 'v1.1.0',
+        'name': 'Dawami Windows Release 1.1.0',
+        'body': 'Features:\n- Added Windows Desktop Setup\n- Real biometric face capture',
+        'html_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.1.0',
+        'published_at': '2026-11-28T12:00:00Z',
         'prerelease': false,
         'assets': [
           {
-            'name': 'app-release.apk',
-            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.2.0/app-release.apk',
-            'size': 25000000,
-          },
-          {
-            'name': 'source.zip',
-            'browser_download_url': 'https://github.com/.../source.zip',
-            'size': 1000000,
-          }
-        ],
-      };
-
-      final release = AppReleaseInfo.fromJson(json);
-      expect(release.tagName, 'v1.2.0');
-      expect(release.cleanVersion, '1.2.0');
-      expect(release.name, 'Dawami Release 1.2.0');
-      expect(release.apkDownloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.2.0/app-release.apk');
-      expect(release.apkFileName, 'app-release.apk');
-      expect(release.hasDirectApk, isTrue);
-      expect(release.apkSizeFormatted, isNotEmpty);
-    });
-
-    test('Parses GitHub Release JSON with APK and Windows EXE assets', () {
-      final json = {
-        'tag_name': 'v1.1.0',
-        'name': 'Dawami Release 1.1.0',
-        'body': 'Features:\n- Added Windows Installer',
-        'html_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.1.0',
-        'assets': [
-          {
-            'name': 'app-release.apk',
-            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/app-release.apk',
-            'size': 88000000,
-          },
-          {
             'name': 'Dawami_Setup_v1.1.0.exe',
             'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/Dawami_Setup_v1.1.0.exe',
-            'size': 9700000,
+            'size': 14800000,
+          },
+          {
+            'name': 'Dawami_v1.1.0_Windows_Portable.zip',
+            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/Dawami_v1.1.0_Windows_Portable.zip',
+            'size': 14750000,
           }
         ],
       };
 
       final release = AppReleaseInfo.fromJson(json);
+      expect(release.tagName, 'v1.1.0');
       expect(release.cleanVersion, '1.1.0');
-      expect(release.hasDirectApk, isTrue);
-      expect(release.hasDirectExe, isTrue);
+      expect(release.name, 'Dawami Windows Release 1.1.0');
+      expect(release.exeDownloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/Dawami_Setup_v1.1.0.exe');
       expect(release.exeFileName, 'Dawami_Setup_v1.1.0.exe');
-      // downloadUrl prioritizes direct executable asset (.exe on desktop or .apk), falling back to htmlUrl
-      expect(release.downloadUrl, isNotEmpty);
-      expect(release.downloadUrl.contains('dawami-sd'), isTrue);
+      expect(release.hasDirectExe, isTrue);
+      expect(release.exeSizeFormatted, contains('ميجابايت'));
+      expect(release.downloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.1.0/Dawami_Setup_v1.1.0.exe');
     });
 
-    test('Parses GitHub Release JSON without APK asset fallback', () {
+    test('Parses GitHub Release JSON with ZIP portable asset fallback', () {
+      final json = {
+        'tag_name': 'v1.2.0',
+        'name': 'Dawami Portable 1.2.0',
+        'body': 'Portable Windows build',
+        'html_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.2.0',
+        'assets': [
+          {
+            'name': 'Dawami_Portable.zip',
+            'browser_download_url': 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/download/v1.2.0/Dawami_Portable.zip',
+            'size': 15000000,
+          }
+        ],
+      };
+
+      final release = AppReleaseInfo.fromJson(json);
+      expect(release.cleanVersion, '1.2.0');
+      expect(release.hasDirectExe, isTrue);
+      expect(release.exeFileName, 'Dawami_Portable.zip');
+      expect(release.downloadUrl, contains('Dawami_Portable.zip'));
+    });
+
+    test('Parses GitHub Release JSON without Desktop assets fallback to web release page', () {
       final json = {
         'tag_name': 'v1.0.0',
         'name': 'Initial Release',
@@ -106,8 +99,8 @@ void main() {
 
       final release = AppReleaseInfo.fromJson(json);
       expect(release.cleanVersion, '1.0.0');
-      expect(release.hasDirectApk, isFalse);
-      expect(release.apkDownloadUrl, isNull);
+      expect(release.hasDirectExe, isFalse);
+      expect(release.exeDownloadUrl, isNull);
       expect(release.downloadUrl, 'https://github.com/IbrIx-ibra7im/dawami-sd/releases/tag/v1.0.0');
     });
   });
