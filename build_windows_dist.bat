@@ -19,16 +19,18 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [2/4] تجميع الملف التنفيذي المكتبي Dawami.exe بالأيقونة المدمجة...
+echo [2/4] تجميع الحزمة المدمجة والملف التنفيذي الذاتي Dawami.exe...
+powershell -NoProfile -Command "Compress-Archive -Path 'build\web\*' -DestinationPath 'windows\launcher\web_bundle.zip' -Force"
 if not exist "dist\Dawami_Release\data\web" mkdir "dist\Dawami_Release\data\web"
 
 set "CSC_EXE=C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-"%CSC_EXE%" /target:winexe /win32icon:"windows\runner\resources\app_icon.ico" /out:"dist\Dawami_Release\Dawami.exe" "windows\launcher\DawamiLauncher.cs"
+"%CSC_EXE%" /target:winexe /r:System.IO.Compression.FileSystem.dll /r:System.IO.Compression.dll /resource:"windows\launcher\web_bundle.zip,DawamiWebBundle" /win32icon:"windows\runner\resources\app_icon.ico" /out:"dist\Dawami.exe" "windows\launcher\DawamiLauncher.cs"
 if %ERRORLEVEL% neq 0 (
     echo [X] حدث خطأ أثناء تجميع Dawami.exe.
     pause
     exit /b %ERRORLEVEL%
 )
+copy /Y "dist\Dawami.exe" "dist\Dawami_Release\Dawami.exe" >nul
 
 echo.
 echo [3/4] نسخ ملفات التشغيل والمكتبات إلى مجلد dist\Dawami_Release...

@@ -54,10 +54,53 @@ class Program
                 }
             }
 
+            // Self-contained fallback: Extract embedded bundle if running as standalone single exe
+            if (string.IsNullOrEmpty(webRoot))
+            {
+                try
+                {
+                    string localDataDir = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "DawamiApp",
+                        "WebBundle_v1.1.0");
+
+                    string localIndex = Path.Combine(localDataDir, "index.html");
+
+                    if (!File.Exists(localIndex))
+                    {
+                        Assembly asm = Assembly.GetExecutingAssembly();
+                        using (Stream resStream = asm.GetManifestResourceStream("DawamiWebBundle"))
+                        {
+                            if (resStream != null)
+                            {
+                                if (Directory.Exists(localDataDir))
+                                {
+                                    try { Directory.Delete(localDataDir, true); } catch { }
+                                }
+                                Directory.CreateDirectory(localDataDir);
+                                string tempZip = Path.Combine(localDataDir, "bundle.zip");
+                                using (FileStream fs = new FileStream(tempZip, FileMode.Create, FileAccess.Write))
+                                {
+                                    resStream.CopyTo(fs);
+                                }
+                                System.IO.Compression.ZipFile.ExtractToDirectory(tempZip, localDataDir);
+                                try { File.Delete(tempZip); } catch { }
+                            }
+                        }
+                    }
+
+                    if (File.Exists(localIndex))
+                    {
+                        webRoot = localDataDir;
+                    }
+                }
+                catch { }
+            }
+
             if (string.IsNullOrEmpty(webRoot))
             {
                 MessageBox.Show(
-                    "لم يتم العثور على ملفات واجهة النظام (data/web/index.html).\nيرجى التأكد من اكتمال مجلد التطبيق.",
+                    "لم يتم العثور على ملفات واجهة النظام (data/web/index.html).\nيرجى التأكد من تشغيل تطبيق دوامي المكتمل.",
                     "دوامي - خطأ في التشغيل",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Error);

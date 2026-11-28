@@ -4,17 +4,17 @@
 
 ---
 
-### 1. النسخة المحمولة القابلة للتشغيل المباشر (Portable App):
-- **الملف:** [`Dawami_v1.1.0_Windows_Portable.zip`](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami_v1.1.0_Windows_Portable.zip)
-- **الحجم:** `14.7 MB`
-- **طريقة الاستخدام:**
-  1. قم بتحميل الملف المضغوط `Dawami_v1.1.0_Windows_Portable.zip`.
-  2. فك الضغط في أي مجلد تريده على جهاز الكمبيوتر.
-  3. اضغط نقراً مزدوجاً على الملف التنفيذي `Dawami.exe`.
-  4. يفتح النظام فوراً في نافذة مستقلة بدقة كاملة ويعمل بكفاءة دون الحاجة إلى إنترنت.
+### 1. الملف التنفيذي المباشر الشامل (Single-File Standalone EXE):
+- **الملف:** [`Dawami.exe`](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami.exe)
+- **الحجم:** `15.3 MB`
+- **المزايا:**
+  - **ملف واحد مستقل تماماً:** مدمج بداخله كافة مكونات النظام وواجهة الويب ومحرك فلاتر وقواعد البيانات.
+  - **لا يحتاج لفك ضغط أو ملفات إضافية:** قم بتحميل `Dawami.exe` وضعه في أي مكان وشغّله مباشرة بنقرة مزدوجة!
+  - **يعمل دون إنترنت بنسبة 100%.**
 
 ---
 
-### 2. مثبت ويندوز الرسمي (Windows Installer):
-- **الملف:** [`Dawami_Setup_v1.1.0.exe`](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami_Setup_v1.1.0.exe)
-- **المزايا:** تثبيت رسمي، إنشاء اختصار لدوامي على سطح المكتب وقائمة Start، وإلغاء التثبيت النظيف عند الحاجة.
+### 2. النسخة المحمولة المضغوطة (Portable Zip):
+- **الملف:** [`Dawami_v1.1.0_Windows_Portable.zip`](https://github.com/IbrIx-ibra7im/dawami-sd/raw/main/dist/Dawami_v1.1.0_Windows_Portable.zip)
+- **الحجم:** `30.6 MB`
+- **طريقة الاستخدام:** فك الضغط في أي مجلد، ثم اضغط على `Dawami.exe`.
