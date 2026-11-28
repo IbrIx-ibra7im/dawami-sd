@@ -64,19 +64,44 @@ class Program
                 return;
             }
 
-            // Find an open port, preference for 60507
-            int port = GetPreferredPort(60507);
-            appUrl = string.Format("http://127.0.0.1:{0}/", port);
+            // Start embedded local HTTP server on the best available port
+            int port = 60507;
+            bool started = false;
 
-            // Start embedded local HTTP server
-            listener = new HttpListener();
-            listener.Prefixes.Add(appUrl);
-            try
+            for (int tryPort = 60507; tryPort <= 60525; tryPort++)
             {
-                listener.Prefixes.Add(string.Format("http://localhost:{0}/", port));
+                try
+                {
+                    listener = new HttpListener();
+                    string testPrefix = string.Format("http://127.0.0.1:{0}/", tryPort);
+                    listener.Prefixes.Add(testPrefix);
+                    try
+                    {
+                        listener.Prefixes.Add(string.Format("http://localhost:{0}/", tryPort));
+                    }
+                    catch { }
+                    listener.Start();
+                    port = tryPort;
+                    appUrl = testPrefix;
+                    started = true;
+                    break;
+                }
+                catch
+                {
+                    try { if (listener != null) listener.Close(); } catch { }
+                    listener = null;
+                }
             }
-            catch { }
-            listener.Start();
+
+            if (!started || listener == null)
+            {
+                MessageBox.Show(
+                    "تعذر تشغيل خادم الواجهة المكتبي المحلي.\nيرجى التحقق من صلاحيات النظام ومنافذ الشبكة.",
+                    "دوامي - خطأ في تشغيل المنفذ",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
 
             Thread serverThread = new Thread(ListenLoop);
             serverThread.IsBackground = true;
@@ -84,6 +109,9 @@ class Program
 
             // Setup System Tray Icon so application never dies prematurely
             SetupTrayIcon(appDir);
+
+            // Small delay to ensure HTTP listener is fully primed
+            Thread.Sleep(200);
 
             // Launch Browser Window
             startTime = DateTime.Now;

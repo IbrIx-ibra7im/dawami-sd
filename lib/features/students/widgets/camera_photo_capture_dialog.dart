@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/camera_frame_capture.dart';
 import '../../../core/utils/student_image_helper.dart';
 
 /// نافذة التقاط صورة الطالب الحقيقية بالكاميرا أو اختيارها من الجهاز
@@ -66,10 +67,18 @@ class _CameraPhotoCaptureDialogState extends State<CameraPhotoCaptureDialog>
     setState(() => _isProcessing = true);
     await Future.delayed(const Duration(milliseconds: 350));
 
-    final photoUrl = StudentImageHelper.generateCapturedPhotoDataUrl(
-      studentName: widget.studentName,
-      studentId: widget.studentId,
-    );
+    // محاولة التقاط الصورة الحقيقية مباشرة من إطار الكاميرا الفعلي (Web/Video Canvas)
+    String? realPhotoDataUrl;
+    try {
+      realPhotoDataUrl = captureLiveWebCameraFrame();
+    } catch (_) {}
+
+    final photoUrl = (realPhotoDataUrl != null && realPhotoDataUrl.startsWith('data:image'))
+        ? realPhotoDataUrl
+        : StudentImageHelper.generateCapturedPhotoDataUrl(
+            studentName: widget.studentName,
+            studentId: widget.studentId,
+          );
 
     setState(() {
       _capturedPhotoDataUrl = photoUrl;

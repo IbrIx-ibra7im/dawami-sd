@@ -16,6 +16,8 @@ class Student {
   final int? fingerprintQuality; // 0 - 100%
   final String? fingerprintEnrolledAt;
   final String? photoUrl;
+  final String? faceImagePath; // المسار المحلي الدائم لصورة وجه الطالب على الجهاز
+  final String? faceImageUrl; // رابط الصورة السحابي في التخزين الأساسي
   final bool faceRegistered;
   final String? faceEnrolledAt;
   final String? faceEmbedding;
@@ -31,6 +33,10 @@ class Student {
   String get college => collegeName ?? 'كلية علوم الحاسوب والتنمية البشرية';
   String get department => departmentName ?? 'علوم الحاسوب';
   String get academicLevel => levelName ?? 'المستوى الأول';
+
+  /// رابط أو مسار الصورة المرجعية الفعّال
+  String? get effectivePhotoPath => faceImagePath ?? photoUrl;
+  String? get effectivePhotoUrl => faceImageUrl ?? photoUrl;
 
   String get attendanceMethodDisplay {
     switch (attendanceMethod) {
@@ -84,6 +90,8 @@ class Student {
     this.fingerprintQuality,
     this.fingerprintEnrolledAt,
     this.photoUrl,
+    this.faceImagePath,
+    this.faceImageUrl,
     this.faceRegistered = false,
     this.faceEnrolledAt,
     this.faceEmbedding,
@@ -116,6 +124,8 @@ class Student {
       if (fingerprintQuality != null) 'fingerprint_quality': fingerprintQuality,
       if (fingerprintEnrolledAt != null) 'fingerprint_enrolled_at': fingerprintEnrolledAt,
       'photo_url': photoUrl,
+      if (faceImagePath != null) 'face_image_path': faceImagePath,
+      if (faceImageUrl != null) 'face_image_url': faceImageUrl,
       'face_registered': faceRegistered ? 1 : 0,
       if (faceEnrolledAt != null) 'face_enrolled_at': faceEnrolledAt,
       if (faceEmbedding != null) 'face_embedding': faceEmbedding,
@@ -185,6 +195,8 @@ class Student {
         'fingerprint_quality': fingerprintQuality,
         'fingerprint_enrolled_at': fingerprintEnrolledAt,
         'photo_url': photoUrl,
+        'face_image_path': faceImagePath,
+        'face_image_url': faceImageUrl,
         'face_registered': faceRegistered,
         'face_enrolled_at': faceEnrolledAt,
         'face_embedding': faceEmbedding,
@@ -262,6 +274,8 @@ class Student {
       fingerprintQuality: (map['fingerprint_quality'] as num?)?.toInt(),
       fingerprintEnrolledAt: map['fingerprint_enrolled_at']?.toString(),
       photoUrl: map['photo_url']?.toString(),
+      faceImagePath: map['face_image_path']?.toString(),
+      faceImageUrl: map['face_image_url']?.toString(),
       faceRegistered: isFace,
       faceEnrolledAt: map['face_enrolled_at']?.toString(),
       faceEmbedding: map['face_embedding']?.toString(),
@@ -301,6 +315,8 @@ class Student {
     int? fingerprintQuality,
     String? fingerprintEnrolledAt,
     String? photoUrl,
+    String? faceImagePath,
+    String? faceImageUrl,
     bool? faceRegistered,
     String? faceEnrolledAt,
     String? faceEmbedding,
@@ -334,6 +350,8 @@ class Student {
           ? null
           : fingerprintEnrolledAt ?? this.fingerprintEnrolledAt,
       photoUrl: photoUrl ?? this.photoUrl,
+      faceImagePath: faceImagePath ?? this.faceImagePath,
+      faceImageUrl: faceImageUrl ?? this.faceImageUrl,
       faceRegistered: faceRegistered ?? this.faceRegistered,
       faceEnrolledAt: faceEnrolledAt ?? this.faceEnrolledAt,
       faceEmbedding: faceEmbedding ?? this.faceEmbedding,

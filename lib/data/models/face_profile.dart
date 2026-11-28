@@ -7,13 +7,18 @@ class FaceProfile {
   final String universityId;
   final List<double> embedding; // البصمة الرقمية المتجهة للوجه (128-dimensional embedding vector)
   final String faceEmbeddingHash; // تجزئة أمان فريدة للبصمة
-  final String? referencePhotoUrl; // صورة مرجعية لوجه الطالب
+  final String? referencePhotoUrl; // صورة مرجعية لوجه الطالب (رابط أو مسار)
+  final String? referenceImagePath; // المسار المحلي الدائم لصورة وجه الطالب
+  final String? referenceImageUrl; // رابط الصورة السحابي في التخزين الأساسي
   final int qualityScore; // نسبة جودة ووضوح الوجه (0 - 100)
   final bool livenessVerified; // هل تم اجتياز فحص الحيوية
   final double livenessScore; // درجة الحيوية المقاسة (0.0 - 1.0)
   final int sampleCount; // عدد العينات المأخوذة للوجه (مثال: 3 زوايا)
   final String enrolledAt;
   final bool isActive;
+
+  /// الصورة المرجعية الفعّالة محلياً أو سحابياً
+  String? get effectivePhotoPath => referenceImagePath ?? referencePhotoUrl;
 
   const FaceProfile({
     required this.id,
@@ -22,6 +27,8 @@ class FaceProfile {
     this.embedding = const [],
     required this.faceEmbeddingHash,
     this.referencePhotoUrl,
+    this.referenceImagePath,
+    this.referenceImageUrl,
     this.qualityScore = 95,
     this.livenessVerified = true,
     this.livenessScore = 0.98,
@@ -37,7 +44,9 @@ class FaceProfile {
       'university_id': universityId,
       'embedding': jsonEncode(embedding),
       'face_embedding_hash': faceEmbeddingHash,
-      'reference_photo_url': referencePhotoUrl,
+      'reference_photo_url': referencePhotoUrl ?? referenceImagePath ?? referenceImageUrl,
+      if (referenceImagePath != null) 'reference_image_path': referenceImagePath,
+      if (referenceImageUrl != null) 'reference_image_url': referenceImageUrl,
       'quality_score': qualityScore,
       'liveness_verified': livenessVerified ? 1 : 0,
       'liveness_score': livenessScore,
@@ -80,6 +89,8 @@ class FaceProfile {
       embedding: parsedEmbedding,
       faceEmbeddingHash: map['face_embedding_hash']?.toString() ?? '',
       referencePhotoUrl: map['reference_photo_url']?.toString(),
+      referenceImagePath: map['reference_image_path']?.toString(),
+      referenceImageUrl: map['reference_image_url']?.toString(),
       qualityScore: (map['quality_score'] as num?)?.toInt() ?? 95,
       livenessVerified: (map['liveness_verified'] == 1 || map['liveness_verified'] == true),
       livenessScore: (map['liveness_score'] as num?)?.toDouble() ?? 0.98,
@@ -96,6 +107,8 @@ class FaceProfile {
     List<double>? embedding,
     String? faceEmbeddingHash,
     String? referencePhotoUrl,
+    String? referenceImagePath,
+    String? referenceImageUrl,
     int? qualityScore,
     bool? livenessVerified,
     double? livenessScore,
@@ -110,6 +123,8 @@ class FaceProfile {
       embedding: embedding ?? this.embedding,
       faceEmbeddingHash: faceEmbeddingHash ?? this.faceEmbeddingHash,
       referencePhotoUrl: referencePhotoUrl ?? this.referencePhotoUrl,
+      referenceImagePath: referenceImagePath ?? this.referenceImagePath,
+      referenceImageUrl: referenceImageUrl ?? this.referenceImageUrl,
       qualityScore: qualityScore ?? this.qualityScore,
       livenessVerified: livenessVerified ?? this.livenessVerified,
       livenessScore: livenessScore ?? this.livenessScore,

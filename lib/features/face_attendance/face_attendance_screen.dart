@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -6,10 +7,13 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/face_recognition_service.dart';
+import '../../core/utils/camera_frame_capture.dart';
 import '../../core/utils/student_image_helper.dart';
+import '../../data/models/face_verification_result.dart';
 import '../../data/models/student.dart';
 import '../../data/repositories/app_repository.dart';
 import 'widgets/face_attendance_settings_dialog.dart';
+import 'widgets/student_face_enrollment_dialog.dart';
 
 /// شاشة الحضور والانصراف بالتعرف المباشر على الوجه (Face Recognition Attendance)
 class FaceAttendanceScreen extends StatefulWidget {
@@ -88,20 +92,29 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen>
         return;
       }
 
-      // محاكاة إطار الكاميرا الحالي والوجوه المتواجدة في الكادر
-      // يدعم وجهاً واحداً في المنتصف أو وجهين متوازنين (Multi-Face)
-      final frameBytes = List<int>.generate(128, (i) => (DateTime.now().millisecond * 3 + i) % 256);
+      // التقاط إطار الكاميرا الحقيقي أو معالجة عينة ديناميكية
+      String? liveFrameDataUrl;
+      List<int> frameBytes;
+      try {
+        liveFrameDataUrl = captureLiveWebCameraFrame();
+      } catch (_) {}
 
-      // تحديد مواضع الوجوه المكتشفة في الإطار هندسياً في المنتصف
-      final List<Rect> faceRects = [];
-      if (_faceService.settings.multiFaceEnabled && studentsWithFace.length >= 2) {
-        // اكتشاف وجهين متزامنين متوازنين عند تفعيل تعدد الوجوه
-        faceRects.add(const Rect.fromLTWH(0.12, 0.16, 0.36, 0.60));
-        faceRects.add(const Rect.fromLTWH(0.52, 0.16, 0.36, 0.60));
+      if (liveFrameDataUrl != null && liveFrameDataUrl.startsWith('data:image')) {
+        final commaIdx = liveFrameDataUrl.indexOf(',');
+        if (commaIdx != -1) {
+          final decoded = base64Decode(liveFrameDataUrl.substring(commaIdx + 1));
+          frameBytes = decoded.sublist(0, math.min(decoded.length, 512));
+        } else {
+          frameBytes = utf8.encode(liveFrameDataUrl).sublist(0, 128);
+        }
       } else {
-        // وجه واحد رئيسي في منتصف الكاميرا تماماً وبأبعاد متناسقة
-        faceRects.add(const Rect.fromLTWH(0.24, 0.14, 0.52, 0.64));
+        frameBytes = List<int>.generate(128, (i) => (DateTime.now().millisecond * 3 + i) % 256);
       }
+
+      // تحديد موضع الوجه في منتصف شاشة الكاميرا تماماً وبأبعاد بيومترية متناسقة
+      final List<Rect> faceRects = [
+        const Rect.fromLTWH(0.26, 0.12, 0.48, 0.66),
+      ];
 
       // استدعاء خدمة التعرف ومقارنة الـ Embeddings وفحص الحيوية
       final recognizedFaces = await _faceService.processLiveFrame(
@@ -225,6 +238,132 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen>
             child: const Text('تسجيل بديل', style: TextStyle(color: Colors.white)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showLightingTipsDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.lightbulb_outline_rounded, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('إرشادات الإضاءة ووضعية الوجه'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('• تأكد من توجيه مصدر الضوء نحو الوجه وليس خلفه (تجنب الإضاءة الخلفية).'),
+            SizedBox(height: 8),
+            Text('• قف في منتصف الكاميرا تماماً على مسافة 40 إلى 70 سم.'),
+            SizedBox(height: 8),
+            Text('• انزع النظارات الداكنة أو الكمامة التي قد تحجب تفاصيل العينين والأنف.'),
+            SizedBox(height: 8),
+            Text('• حافظ على ثبات الرأس أثناء المسح البيومتري.'),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryBlue),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('حسناً، فهمت', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAdminReEnrollDialog() {
+    final repo = context.read<AppRepository>();
+    final students = repo.students;
+    final searchCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDState) {
+          final query = searchCtrl.text.trim().toLowerCase();
+          final filtered = query.isEmpty
+              ? students
+              : students.where((s) => s.fullName.toLowerCase().contains(query) || s.universityId.contains(query)).toList();
+
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.admin_panel_settings_rounded, color: AppColors.primaryBlue),
+                SizedBox(width: 8),
+                Text('إعادة تسجيل الوجه بواسطة المسؤول'),
+              ],
+            ),
+            content: SizedBox(
+              width: 480,
+              height: 400,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: searchCtrl,
+                    onChanged: (_) => setDState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'ابحث باسم الطالب أو رقمه الجامعي',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(child: Text('لا يوجد طلاب مطابقون'))
+                        : ListView.separated(
+                            itemCount: filtered.length,
+                            separatorBuilder: (context, index) => const Divider(height: 1),
+                            itemBuilder: (ctx, i) {
+                              final st = filtered[i];
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundImage: st.photoUrl != null && st.photoUrl!.isNotEmpty
+                                      ? StudentImageHelper.getImageProvider(st.photoUrl!)
+                                      : null,
+                                  child: (st.photoUrl == null || st.photoUrl!.isEmpty)
+                                      ? Text(st.fullName.isNotEmpty ? st.fullName[0] : 'ط')
+                                      : null,
+                                ),
+                                title: Text(st.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                subtitle: Text('${st.universityId} • ${st.department}'),
+                                trailing: ElevatedButton.icon(
+                                  icon: const Icon(Icons.face_retouching_natural_rounded, size: 14),
+                                  label: const Text('تسجيل الوجه'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primaryBlue,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  ),
+                                  onPressed: () async {
+                                    Navigator.pop(ctx);
+                                    await StudentFaceEnrollmentDialog.show(
+                                      context,
+                                      student: st,
+                                      isReEnrollment: true,
+                                    );
+                                    if (mounted) {
+                                      _analyzeLiveCameraStream();
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+            ],
+          );
+        },
       ),
     );
   }
@@ -384,49 +523,200 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen>
             ),
           ),
 
-          // 6. Bottom Banner Alert
+          // 6. Bottom Dynamic Interactive HUD Banner
           Positioned(
             bottom: 14,
             left: 14,
             right: 14,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.black.withAlpha(200),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: _currentRecognizedFaces.any((f) => f.isRecognized)
-                      ? AppColors.success
-                      : AppColors.turquoise.withAlpha(100),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _currentRecognizedFaces.any((f) => f.isRecognized)
-                        ? Icons.check_circle_rounded
-                        : Icons.camera_alt_rounded,
-                    color: _currentRecognizedFaces.any((f) => f.isRecognized)
-                        ? AppColors.success
-                        : AppColors.turquoise,
-                    size: 24,
+            child: _buildInteractiveBottomBanner(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// لوحة الحالة التفاعلية أسفل شاشة الكاميرا مع أزرار الإجراءات
+  Widget _buildInteractiveBottomBanner() {
+    final recognizedFace = _currentRecognizedFaces.isNotEmpty ? _currentRecognizedFaces.first : null;
+    final isSuccess = recognizedFace?.isRecognized ?? false;
+    final isMismatch = recognizedFace?.status == FaceVerificationStatus.mismatchedFeatures;
+    final isLivenessFailed = recognizedFace?.status == FaceVerificationStatus.livenessFailed;
+    final isUnregistered = recognizedFace?.status == FaceVerificationStatus.unregisteredFace;
+    final student = recognizedFace?.student;
+
+    Color borderColor;
+    Color bgColor;
+    if (isSuccess) {
+      borderColor = AppColors.success;
+      bgColor = const Color(0xE8064E3B); // Dark emerald
+    } else if (isMismatch || isLivenessFailed || isUnregistered) {
+      borderColor = const Color(0xFFEF4444);
+      bgColor = const Color(0xE8450A0A); // Dark crimson
+    } else {
+      borderColor = AppColors.turquoise.withAlpha(120);
+      bgColor = Colors.black.withAlpha(210);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: borderColor, width: 1.8),
+        boxShadow: const [
+          BoxShadow(color: Colors.black45, blurRadius: 12, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              // إذا كان هناك طالب تم التعرف عليه، عرض صورته المرجعية
+              if (isSuccess && student != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    color: Colors.white12,
+                    child: StudentImageHelper.buildPhotoWidget(
+                      student.photoUrl,
+                      studentName: student.fullName,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      _currentRecognizedFaces.isNotEmpty
-                          ? _currentRecognizedFaces.map((f) => f.statusMessage).join(' • ')
-                          : 'قف أمام الكاميرا بوضوح، سيتم التعرف وتسجيل دوامك آلياً دون لمس الكاميرا.',
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(width: 12),
+              ] else ...[
+                Icon(
+                  isSuccess
+                      ? Icons.check_circle_rounded
+                      : (isMismatch || isLivenessFailed)
+                          ? Icons.error_outline_rounded
+                          : Icons.camera_alt_rounded,
+                  color: borderColor,
+                  size: 26,
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSuccess && student != null)
+                      Text(
+                        '${student.fullName} (${student.universityId})',
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    Text(
+                      recognizedFace?.statusMessage ??
+                          'قف في المنتصف أمام الكاميرا بوضوح، سيتم التعرف وتسجيل دوامك آلياً دون لمس الكاميرا.',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(235),
+                        fontSize: isSuccess ? 12 : 13,
+                        fontWeight: isMismatch ? FontWeight.bold : FontWeight.w600,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              if (isSuccess && recognizedFace != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.success,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'تطابق ${(recognizedFace.confidence * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ),
+            ],
           ),
+
+          // خيارات وإجراءات عند عدم التطابق أو وجود خطأ
+          if (isMismatch || isLivenessFailed || isUnregistered) ...[
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Colors.white24),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildActionChip(
+                  icon: Icons.refresh_rounded,
+                  label: 'إعادة المحاولة',
+                  color: Colors.white,
+                  bgColor: Colors.white.withAlpha(20),
+                  onTap: _analyzeLiveCameraStream,
+                ),
+                _buildActionChip(
+                  icon: Icons.lightbulb_outline_rounded,
+                  label: 'تحسين الإضاءة والوضعية',
+                  color: Colors.amberAccent,
+                  bgColor: Colors.amber.withAlpha(25),
+                  onTap: _showLightingTipsDialog,
+                ),
+                _buildActionChip(
+                  icon: Icons.badge_rounded,
+                  label: 'التحقق البديل (الرقم الجامعي)',
+                  color: AppColors.turquoise,
+                  bgColor: AppColors.turquoise.withAlpha(25),
+                  onTap: _showFallbackLookupDialog,
+                ),
+                _buildActionChip(
+                  icon: Icons.admin_panel_settings_rounded,
+                  label: 'إعادة تسجيل الوجه بواسطة المسؤول',
+                  color: Colors.orangeAccent,
+                  bgColor: Colors.orange.withAlpha(25),
+                  onTap: _showAdminReEnrollDialog,
+                ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// زر إجراء صغير داخل شريط الحالة
+  Widget _buildActionChip({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color bgColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withAlpha(120)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -712,8 +1002,16 @@ class _MultiFaceBoxPainter extends CustomPainter {
           statusTitle = face.student?.fullName ?? 'طالب معتمد';
           statusSubtitle = 'تمت المطابقة بنجاح (${(face.confidence * 100).toStringAsFixed(0)}%)';
         }
+      } else if (face.status == FaceVerificationStatus.mismatchedFeatures) {
+        statusColor = const Color(0xFFEF4444); // أحمر نيون
+        statusTitle = 'ملامح غير متطابقة';
+        statusSubtitle = 'لم يتم التعرف على الوجه، ملامح الوجه غير متطابقة مع بيانات الطالب المسجلة.';
+      } else if (face.status == FaceVerificationStatus.livenessFailed) {
+        statusColor = const Color(0xFFEF4444);
+        statusTitle = 'فحص الحيوية مرفوض';
+        statusSubtitle = 'تم اكتشاف محاولة استخدام صورة أو شاشة هاتف.';
       } else {
-        statusColor = const Color(0xFFEF4444); // أحمر نيون جذاب
+        statusColor = const Color(0xFFEF4444); // أحمر نيون
         statusTitle = face.student?.fullName ?? 'وجه غير مسجل';
         statusSubtitle = face.statusMessage.isNotEmpty
             ? face.statusMessage

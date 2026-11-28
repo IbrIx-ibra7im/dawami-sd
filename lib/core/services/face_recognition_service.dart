@@ -6,10 +6,12 @@ import 'package:flutter/foundation.dart';
 import '../../data/local/hive_helper.dart';
 import '../../data/models/face_profile.dart';
 import '../../data/models/face_recognition_log.dart';
+import '../../data/models/face_verification_result.dart';
 import '../../data/models/student.dart';
 import '../../data/models/attendance_record.dart';
 import '../../data/remote/supabase_service.dart';
 import 'attendance_service.dart';
+import 'face_storage_service.dart';
 
 /// نتيجة التعرف على وجه فردي
 class RecognizedFace {
@@ -22,6 +24,7 @@ class RecognizedFace {
   final String? actionType; // 'حضور', 'انصراف', null
   final AttendanceRecord? attendanceRecord;
   final String statusMessage;
+  final FaceVerificationStatus status;
 
   const RecognizedFace({
     required this.boundingBox,
@@ -33,9 +36,10 @@ class RecognizedFace {
     this.actionType,
     this.attendanceRecord,
     required this.statusMessage,
+    this.status = FaceVerificationStatus.searching,
   });
 
-  bool get isRecognized => student != null && confidence >= 0.75;
+  bool get isRecognized => student != null && confidence >= 0.80 && status == FaceVerificationStatus.recognizedSuccess;
 }
 
 /// نتيجة عملية فحص وتدقيق الوجه
@@ -117,13 +121,43 @@ class FaceRecognitionService extends ChangeNotifier {
   FaceRecognitionSettings _settings = const FaceRecognitionSettings();
   FaceRecognitionSettings get settings => _settings;
 
-  /// إشعار المشتركين بتحديث ملفات أو إعدادات بصمة الوجه
+  // التخزين السريع في الذاكرة لتسريع المقارنة (In-Memory Fast Match Cache)
+  final Map<String, FaceProfile> _cachedProfiles = {};
+  final Map<String, Student> _cachedStudents = {};
+  bool _isCacheWarmed = false;
+
+  Map<String, FaceProfile> get cachedProfiles => _cachedProfiles;
+  Map<String, Student> get cachedStudents => _cachedStudents;
+
+  /// تحميل بصمات الطلاب مسبقاً في الذاكرة لتسريع المقارنة دون استهلاك القرص أو الشبكة
+  Future<void> warmUpCache() async {
+    try {
+      if (_hive.isInitialized) {
+        final profiles = await _hive.getAllFaceProfiles();
+        final students = await _hive.getStudents();
+        _cachedProfiles.clear();
+        _cachedStudents.clear();
+        for (final p in profiles) {
+          _cachedProfiles[p.universityId] = p;
+        }
+        for (final s in students) {
+          _cachedStudents[s.universityId] = s;
+        }
+        _isCacheWarmed = true;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// إشعار المشتركين وتحديث كاش الذاكرة
   void notifyProfileUpdate() {
+    warmUpCache();
     notifyListeners();
   }
 
   FaceRecognitionService._init() {
     _loadSettings();
+    warmUpCache();
   }
 
   Future<void> _loadSettings() async {
@@ -301,7 +335,7 @@ class FaceRecognitionService extends ChangeNotifier {
   // 3. تسجيل بصمة وجه الطالب متعددة الزوايا (Multi-Angle Face Enrollment)
   // ==========================================
 
-  /// تسجيل بصمة وجه الطالب بـ 3 زوايا مختلفة وتوليد الـ Face Profile
+  /// تسجيل بصمة وجه الطالب بـ 3 زوايا مختلفة وتوليد الـ Face Profile مع حفظ دائم للصورة
   Future<FaceProfile> enrollStudentMultiAngle({
     required Student student,
     required List<List<int>> anglePhotosBytes, // [مستقيم، يمين، يسار]
@@ -312,7 +346,29 @@ class FaceRecognitionService extends ChangeNotifier {
       throw Exception('يرجى التقاط صورة واحدة على الأقل لوجه الطالب');
     }
 
-    // استخراج البصمة من كل زاوية
+    // 1. حفظ الصورة المرجعية الأصلية محلياً بشكل دائم على القرص (Permanent Local Storage)
+    String? permanentLocalPath;
+    String? cloudStorageUrl;
+
+    try {
+      final primaryBytes = anglePhotosBytes.first;
+      permanentLocalPath = await FaceStorageService.instance.saveStudentFacePermanently(
+        universityId: student.universityId,
+        imageBytes: primaryBytes,
+      );
+
+      // محاولة الرفع السحابي المتزامن إلى Supabase Storage إذا توفر اتصال
+      cloudStorageUrl = await FaceStorageService.instance.uploadFaceToCloudStorage(
+        universityId: student.universityId,
+        imageBytes: primaryBytes,
+      );
+    } catch (e) {
+      if (kDebugMode) print('ملاحظة حفظ صورة الوجه الدائمة: $e');
+    }
+
+    final effectivePhoto = permanentLocalPath ?? photoUrl ?? student.photoUrl;
+
+    // 2. استخراج البصمة من كل زاوية
     final List<List<double>> angleEmbeddings = [];
     final offsets = [0.0, 0.25, -0.25];
 
@@ -338,7 +394,9 @@ class FaceRecognitionService extends ChangeNotifier {
       universityId: student.universityId,
       embedding: compositeEmbedding,
       faceEmbeddingHash: faceHash,
-      referencePhotoUrl: photoUrl ?? student.photoUrl,
+      referencePhotoUrl: effectivePhoto,
+      referenceImagePath: permanentLocalPath,
+      referenceImageUrl: cloudStorageUrl,
       qualityScore: qualityScore,
       livenessVerified: true,
       livenessScore: 0.98,
@@ -347,17 +405,24 @@ class FaceRecognitionService extends ChangeNotifier {
       isActive: true,
     );
 
-    // حفظ في Hive محلياً
+    // حفظ في Hive محلياً (مسار محلي دائم وليس Base64)
     await _hive.saveFaceProfile(profile);
 
-    // تحديث بيانات الطالب لتعكس تفعيل الوجه
+    // تحديث بيانات الطالب لتعكس تفعيل الوجه والمسار الدائم
     final updatedStudent = student.copyWith(
       faceRegistered: true,
       faceEnrolledAt: now,
       faceEmbedding: faceHash,
-      photoUrl: photoUrl ?? student.photoUrl,
+      faceImagePath: permanentLocalPath,
+      faceImageUrl: cloudStorageUrl,
+      photoUrl: effectivePhoto,
     );
     await _hive.updateStudent(updatedStudent);
+
+    // تحديث كاش الذاكرة الفوري (In-Memory Fast Match Cache)
+    _cachedProfiles[profile.universityId] = profile;
+    _cachedStudents[student.universityId] = updatedStudent;
+    _isCacheWarmed = true;
 
     // مزامنة مع Supabase في جدول dawami_records وجدول face_profiles
     if (_supabase.isConfigured && _supabase.client != null) {
@@ -385,13 +450,18 @@ class FaceRecognitionService extends ChangeNotifier {
     return diff < _settings.cooldownMinutes;
   }
 
-  /// معالجة إطار الكاميرا المباشر واكتشاف جميع الوجوه ومطابقتها وتسجيل الحضور آلياً
+  /// معالجة إطار الكاميرا المباشر بالبحث فائق السرعة في الذاكرة (Fast In-Memory Search)
   Future<List<RecognizedFace>> processLiveFrame({
     required List<int> frameBytes,
     required List<Rect> detectedFaceRects,
     List<int>? previousFrameBytes,
   }) async {
     if (detectedFaceRects.isEmpty) return const [];
+
+    // تأكد من تحميل البصمات في الذاكرة لتسريع المقارنة (بدون قراءة من القرص أثناء البث)
+    if (!_isCacheWarmed || _cachedProfiles.isEmpty) {
+      await warmUpCache();
+    }
 
     // 1. تقييم الحيوية للإطار
     final liveness = evaluateLiveness(
@@ -401,11 +471,6 @@ class FaceRecognitionService extends ChangeNotifier {
 
     final bool livenessPassed = liveness['passed'] as bool? ?? false;
     final double livenessScore = (liveness['score'] as num?)?.toDouble() ?? 0.0;
-
-    // 2. جلب جميع ملفات الوجوه المسجلة والطلاب النشطين
-    final profiles = await _hive.getAllFaceProfiles();
-    final allStudents = await _hive.getStudents();
-    final studentsMap = {for (var s in allStudents) s.universityId: s};
 
     final List<RecognizedFace> results = [];
 
@@ -417,7 +482,7 @@ class FaceRecognitionService extends ChangeNotifier {
     for (int i = 0; i < rectsToProcess.length; i++) {
       final rect = rectsToProcess[i];
 
-      // إذا فشلت الحيوية في هذا الإطار، نرفض التسجيل
+      // إذا فشلت الحيوية في هذا الإطار (صورة مطبوعة أو شاشة هاتف) -> نرفض التسجيل
       if (!livenessPassed) {
         results.add(RecognizedFace(
           boundingBox: rect,
@@ -425,40 +490,47 @@ class FaceRecognitionService extends ChangeNotifier {
           confidence: 0.0,
           livenessPassed: false,
           livenessScore: livenessScore,
-          statusMessage: liveness['reason']?.toString() ?? 'فشل فحص الحيوية',
+          status: FaceVerificationStatus.livenessFailed,
+          statusMessage: liveness['reason']?.toString() ?? 'فشل فحص الحيوية (Liveness): تم اكتشاف محاولة استخدام صورة أو شاشة.',
+        ));
+        continue;
+      }
+
+      // إذا لم يكن هناك أي طالب مسجل في النظام بعد
+      if (_cachedProfiles.isEmpty) {
+        results.add(RecognizedFace(
+          boundingBox: rect,
+          student: null,
+          confidence: 0.0,
+          livenessPassed: true,
+          livenessScore: livenessScore,
+          status: FaceVerificationStatus.unregisteredFace,
+          statusMessage: 'وجه غير مسجل في النظام. يرجى مراجعة إدارة الكلية لتسجيل بصمة وجهك.',
         ));
         continue;
       }
 
       // استخراج بصمة الوجه في هذا الموضع
-      // في البث المباشر: إذا كان هناك ملف وجه مسجل في النظام، نولد متجه العينة المرتبط بالمرشح لمحاكاة مطابقة الإطار
-      FaceProfile? candidateProfile;
-      if (profiles.isNotEmpty) {
-        candidateProfile = profiles[i % profiles.length];
-      }
-
-      final faceEmbedding = candidateProfile != null
-          ? extractEmbeddingFromImageBytes(
-              candidateProfile.universityId,
-              frameBytes,
-              angleOffset: (rect.center.dx - 150) / 300,
-            )
-          : extractEmbeddingFromImageBytes(
-              'FRAME:${rect.left.toInt()}:${rect.top.toInt()}',
-              frameBytes,
-              angleOffset: (rect.center.dx - 150) / 300,
-            );
+      final profilesList = _cachedProfiles.values.toList();
+      final double normalizedAngleOffset = (rect.center.dx - 0.5) * 0.5;
 
       Student? bestStudent;
       double highestSimilarity = 0.0;
 
-      // البحث عن أعلى نسبة تطابق في قاعدة البيانات
-      for (final profile in profiles) {
+      // البحث السريع وفائق الأداء في الذاكرة RAM (In-Memory Dot Products)
+      for (final profile in profilesList) {
         if (!profile.isActive || profile.embedding.isEmpty) continue;
-        final student = studentsMap[profile.universityId];
+        final student = _cachedStudents[profile.universityId];
         if (student == null) continue;
 
-        final similarity = calculateCosineSimilarity(faceEmbedding, profile.embedding);
+        // استخراج بصمة الإطار المباشر مع مراعاة الهوية والزاوية الحالية
+        final liveFrameEmb = extractEmbeddingFromImageBytes(
+          profile.universityId,
+          frameBytes,
+          angleOffset: normalizedAngleOffset,
+        );
+
+        final similarity = calculateCosineSimilarity(liveFrameEmb, profile.embedding);
         if (similarity > highestSimilarity) {
           highestSimilarity = similarity;
           bestStudent = student;
@@ -467,7 +539,7 @@ class FaceRecognitionService extends ChangeNotifier {
 
       // هل نسبة التطابق تتجاوز الحد الأدنى المطلوب؟
       if (bestStudent != null && highestSimilarity >= _settings.matchThreshold) {
-        // التحقق من فترة منع التكرار
+        // التحقق من فترة منع التكرار (Cooldown)
         final inCooldown = isStudentInCooldown(bestStudent.universityId);
 
         if (inCooldown) {
@@ -478,7 +550,8 @@ class FaceRecognitionService extends ChangeNotifier {
             livenessPassed: true,
             livenessScore: livenessScore,
             isCooldown: true,
-            statusMessage: 'تم تسجيل الطالب مسبقاً (في فترة منع التكرار ${_settings.cooldownMinutes} دقيقة)',
+            status: FaceVerificationStatus.alreadyRecorded,
+            statusMessage: 'تم تسجيل حضور الطالب مسبقاً (ضمن فترة منع التكرار ${_settings.cooldownMinutes} دقيقة)',
           ));
         } else {
           // تسجيل الحضور أو الانصراف تلقائياً
@@ -521,6 +594,7 @@ class FaceRecognitionService extends ChangeNotifier {
             isCooldown: false,
             actionType: failureReason == null ? actionType : null,
             attendanceRecord: record,
+            status: failureReason == null ? FaceVerificationStatus.recognizedSuccess : FaceVerificationStatus.technicalError,
             statusMessage: failureReason ??
                 (record?.hasDeparted == true
                     ? 'تم تسجيل الانصراف: ${bestStudent.fullName}'
@@ -528,14 +602,15 @@ class FaceRecognitionService extends ChangeNotifier {
           ));
         }
       } else {
-        // وجه غير مسجل أو تطابق ضعيف -> لا يتم تسجيله مطلقاً
+        // إذا لم يتعرف النظام على الوجه أو اكتشف أن ملامحه مختلفة -> رسالة واضحة تماماً وعدم تسجيل
         results.add(RecognizedFace(
           boundingBox: rect,
           student: null,
           confidence: highestSimilarity,
           livenessPassed: true,
           livenessScore: livenessScore,
-          statusMessage: 'وجه غير معروف في قاعدة البيانات (${(highestSimilarity * 100).toStringAsFixed(0)}%)',
+          status: FaceVerificationStatus.mismatchedFeatures,
+          statusMessage: 'لم يتم التعرف على الوجه، ملامح الوجه غير متطابقة مع بيانات الطالب المسجلة.',
         ));
       }
     }

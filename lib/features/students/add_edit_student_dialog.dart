@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/face_recognition_service.dart';
+import '../../core/services/face_storage_service.dart';
 import '../../core/utils/student_image_helper.dart';
 import '../../data/local/hive_helper.dart';
 import '../../data/models/academic_models.dart';
@@ -139,6 +141,25 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
         }
       }
 
+      // تحويل ومعالجة مسار الصورة الدائم إذا كانت الصورة مدخلة حديثاً
+      String? permanentPhotoPath = _enrolledFaceProfile?.referenceImagePath ?? widget.student?.faceImagePath;
+      final enteredPhoto = _photoController.text.trim();
+      if (enteredPhoto.isNotEmpty) {
+        if (!kIsWeb && enteredPhoto.startsWith('data:image')) {
+          try {
+            final commaIndex = enteredPhoto.indexOf(',');
+            final base64Str = commaIndex != -1 ? enteredPhoto.substring(commaIndex + 1) : enteredPhoto;
+            final bytes = base64Decode(base64Str);
+            permanentPhotoPath = await FaceStorageService.instance.saveStudentFacePermanently(
+              universityId: uniId,
+              imageBytes: bytes,
+            );
+          } catch (_) {}
+        } else if (!kIsWeb && !enteredPhoto.startsWith('http')) {
+          permanentPhotoPath = enteredPhoto;
+        }
+      }
+
       final student = Student(
         id: widget.student?.id,
         uuid: widget.student?.uuid,
@@ -164,7 +185,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
             keepsStudentIdentity && fpId.isNotEmpty
                 ? widget.student?.fingerprintEnrolledAt
                 : null,
-        photoUrl: _photoController.text.trim().isNotEmpty ? _photoController.text.trim() : null,
+        photoUrl: permanentPhotoPath ?? (enteredPhoto.isNotEmpty ? enteredPhoto : widget.student?.photoUrl),
+        faceImagePath: permanentPhotoPath,
+        faceImageUrl: _enrolledFaceProfile?.referenceImageUrl ?? widget.student?.faceImageUrl,
         faceRegistered: _faceEnrolledLocally || (_enrolledFaceProfile != null) || (widget.student?.faceRegistered ?? false),
         faceEnrolledAt: _enrolledFaceProfile?.enrolledAt ?? widget.student?.faceEnrolledAt ?? (_faceEnrolledLocally ? DateTime.now().toIso8601String() : null),
         faceEmbedding: _enrolledFaceEmbedding ?? _enrolledFaceProfile?.faceEmbeddingHash ?? widget.student?.faceEmbedding,
@@ -302,6 +325,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
               children: [
                 TextFormField(
                   controller: _nameController,
+                  autofillHints: null,
+                  enableSuggestions: false,
+                  autocorrect: false,
                   decoration: const InputDecoration(
                     labelText: 'الاسم الرباعي *',
                     prefixIcon: Icon(Icons.badge_outlined),
@@ -311,6 +337,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _idController,
+                  autofillHints: null,
+                  enableSuggestions: false,
+                  autocorrect: false,
                   decoration: const InputDecoration(
                     labelText: 'الرقم الجامعي * (مثال: 2023-1590)',
                   ),
@@ -322,6 +351,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _phoneController,
+                        autofillHints: null,
+                        enableSuggestions: false,
+                        autocorrect: false,
                         decoration: const InputDecoration(labelText: 'رقم الهاتف'),
                       ),
                     ),
@@ -329,6 +361,9 @@ class _AddEditStudentDialogState extends State<AddEditStudentDialog> {
                     Expanded(
                       child: TextFormField(
                         controller: _emailController,
+                        autofillHints: null,
+                        enableSuggestions: false,
+                        autocorrect: false,
                         decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
                       ),
                     ),

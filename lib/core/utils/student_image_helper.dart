@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import '../constants/app_colors.dart';
 
-/// مساعد إدارة وتنسيق صور الطلاب البيومترية (Base64 Data URLs, URLs, Camera Snapshots)
+/// مساعد إدارة وتنسيق صور الطلاب البيومترية (Local Files, Base64 Data URLs, URLs, Camera Snapshots)
 class StudentImageHelper {
-  /// توليد ImageProvider يدعم كلاً من Data URLs (Base64) والروابط العادية ومصفوفات البايتات
+  /// توليد ImageProvider يدعم الملفات المحلية الدائمة وكلاً من Data URLs والروابط العادية ومصفوفات البايتات
   static ImageProvider? getImageProvider(String? photoUrl, {String? studentName}) {
     if (photoUrl == null || photoUrl.trim().isEmpty) {
       if (studentName != null && studentName.isNotEmpty) {
@@ -18,7 +20,17 @@ class StudentImageHelper {
 
     final trimmed = photoUrl.trim();
 
-    // 1. Data URL (مثال: data:image/jpeg;base64,/9j/4AAQSkZJRg...)
+    // 1. مسار ملف محلي دائم على القرص (Local Permanent File)
+    if (!kIsWeb && (trimmed.contains('/') || trimmed.contains('\\'))) {
+      try {
+        final file = File(trimmed);
+        if (file.existsSync()) {
+          return FileImage(file);
+        }
+      } catch (_) {}
+    }
+
+    // 2. Data URL (مثال: data:image/jpeg;base64,/9j/4AAQSkZJRg...)
     if (trimmed.startsWith('data:image')) {
       try {
         final commaIndex = trimmed.indexOf(',');
@@ -30,12 +42,12 @@ class StudentImageHelper {
       }
     }
 
-    // 2. روابط HTTP / HTTPS
+    // 3. روابط HTTP / HTTPS
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return NetworkImage(trimmed);
     }
 
-    // 3. كود Base64 خام بدون بادئة
+    // 4. كود Base64 خام بدون بادئة
     try {
       final bytes = base64Decode(trimmed);
       return MemoryImage(bytes);
@@ -59,7 +71,23 @@ class StudentImageHelper {
 
     final trimmed = photoUrl.trim();
 
-    // 1. Data URI
+    // 1. Local Permanent File Path
+    if (!kIsWeb && (trimmed.contains('/') || trimmed.contains('\\'))) {
+      try {
+        final file = File(trimmed);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            width: width,
+            height: height,
+            fit: fit,
+            errorBuilder: (ctx, err, stack) => errorWidget ?? _buildFallback(studentName, width, height),
+          );
+        }
+      } catch (_) {}
+    }
+
+    // 2. Data URI
     if (trimmed.startsWith('data:image')) {
       try {
         final commaIndex = trimmed.indexOf(',');
@@ -77,7 +105,7 @@ class StudentImageHelper {
       }
     }
 
-    // 2. Network URL
+    // 3. Network URL
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return Image.network(
         trimmed,
@@ -88,7 +116,7 @@ class StudentImageHelper {
       );
     }
 
-    // 3. Raw Base64
+    // 4. Raw Base64
     try {
       final bytes = base64Decode(trimmed);
       return Image.memory(
